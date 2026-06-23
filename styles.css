@@ -1,0 +1,62 @@
+/* Lügen — globale Stile & Animationen (Design aus dem Original-Entwurf). */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #1f6b78;
+  color: #fbf3e2;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+}
+#app { position: relative; width: 100%; min-height: 100vh; height: 100dvh; overflow: hidden; }
+
+button { font-family: inherit; }
+input { font-family: inherit; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,.2); border-radius: 8px; }
+
+@keyframes lg-pop  { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes lg-rise { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes lg-glow { 0%,100% { box-shadow: 0 0 0 3px rgba(217,164,65,.85), 0 0 22px rgba(217,164,65,.45); } 50% { box-shadow: 0 0 0 3px rgba(217,164,65,1), 0 0 34px rgba(217,164,65,.8); } }
+@keyframes lg-spin { to { transform: rotate(360deg); } }
+@keyframes lg-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lg-dealin { from { transform: translateY(-18px) scale(.9); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+.lg-pop  { animation: lg-pop .32s cubic-bezier(.2,1.2,.3,1) both; }
+.lg-rise { animation: lg-rise .3s ease both; }
+.lg-fade { animation: lg-fade .25s ease both; }
+
+/* Verbindungs-Spinner */
+.lg-spinner { width: 30px; height: 30px; border: 3px solid rgba(251,243,226,.25); border-top-color: #d9a441; border-radius: 50%; animation: lg-spin .8s linear infinite; }
+
+/* Chat-Dock */
+#lg-chat { position: fixed; right: 0; bottom: 0; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; }
+#lg-chat .panel {
+  width: min(330px, 92vw); height: min(50vh, 420px);
+  background: rgba(16,54,64,.97); border: 1px solid rgba(217,164,65,.4); border-right: none;
+  border-radius: 14px 0 0 14px; box-shadow: 0 -8px 40px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#lg-chat .log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 7px; }
+#lg-chat .row { font-size: 13.5px; line-height: 1.35; word-break: break-word; }
+#lg-chat .row .who { font-weight: 800; }
+#lg-chat .row.sys { color: rgba(251,243,226,.55); font-style: italic; font-size: 12.5px; }
+#lg-chat form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(255,255,255,.12); }
+#lg-chat input { flex: 1; min-width: 0; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fbf3e2; border-radius: 10px; padding: 9px 11px; font-size: 14px; outline: none; }
+#lg-chat input:focus { border-color: rgba(217,164,65,.6); }
+#lg-chat .send { border: none; cursor: pointer; background: linear-gradient(180deg,#d98a63,#c2674a); color: #fff; font-weight: 800; border-radius: 10px; padding: 0 14px; }
+.lg-chat-toggle {
+  margin: 10px; cursor: pointer; border: 1px solid rgba(217,164,65,.5);
+  background: rgba(16,54,64,.92); color: #fbf3e2; font-weight: 800; font-size: 13px;
+  border-radius: 22px; padding: 9px 16px; box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.lg-chat-badge { background: #cf6a5c; color: #fff; border-radius: 10px; min-width: 18px; height: 18px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; padding: 0 5px; }
+
+/* Toast / Fehler */
+#lg-toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 90; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+#lg-toast .t { background: rgba(42,18,21,.96); color: #ffd9d0; border: 1px solid #5c2b2e; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: lg-rise .25s ease both; max-width: 90vw; text-align: center; }
+
+input::placeholder { color: rgba(251,243,226,.4); }
+.lg-lobby input::placeholder { color: #b6c8c2; }

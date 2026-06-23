@@ -1,0 +1,12 @@
+# Render.com Blueprint — "New + → Blueprint" wählt diese Datei automatisch.
+services:
+  - type: web
+    name: luegen-online
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
