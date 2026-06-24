@@ -96,6 +96,7 @@
     leaving: false, reconnecting: false,
     ui: { selected: {}, pickRank: null },
     off: null,
+    offStats: {},   // Offline-Session-Statistik: name -> { name, color, places:{}, games }
     offCfg: { variant: "same", numPlayers: 4, names: ["", "", "", "", "", ""] },
     onlineForm: { name: localStorage.getItem("luegen.name") || "", code: "", variant: "same" },
     banner: { text: "", on: false, timer: null },
@@ -168,9 +169,14 @@
       }
       case "state": {
         var prevMine = app.room ? app.room.yourTurn : false;
+        var prevStatus = app.room ? app.room.status : null;
         app.room = m.room;
         if (m.room.yourTurn && !prevMine) Sound.turn();
         if (!m.room.yourTurn) { app.ui.selected = {}; app.ui.pickRank = null; }
+        if (m.room.status === "over" && prevStatus !== "over") {
+          var meS = m.room.standings && m.room.standings.filter(function (s) { return s.player === m.room.you.index; })[0];
+          Sound[(meS && meS.place === 1) ? "win" : "lose"]();
+        }
         render(); Chat.ensure();
         break;
       }
@@ -206,7 +212,7 @@
         setBanner(text);
         break;
       }
-      case "gameover": Sound[(m.winner != null && m.winner === youIdx()) ? "win" : "lose"](); break;
+      case "gameover": break; // Sound wird beim Status-Wechsel auf 'over' gespielt
     }
   }
 
@@ -219,29 +225,60 @@
         currentRank: r.currentRank, roundRank: r.roundRank, pileCount: r.pileCount,
         players: r.players, youIndex: r.you.index, hand: r.hand || [],
         lastPlay: r.lastPlay, reveal: r.reveal, pickup: r.pickup,
-        winner: r.winner, loser: r.loser, lossReason: r.lossReason,
+        pendingFinish: r.pendingFinish, standings: r.standings, stats: r.stats,
+        winner: r.winner,
         yourTurn: r.yourTurn, canChallenge: r.canChallenge,
         passHidden: false, youResultIndex: r.you.index, round: r.round,
       };
     }
     var g = app.off.game;
-    var players = g.players.map(function (p, i) { return { index: i, name: p.name, color: p.color, isBot: p.isBot, connected: true, count: p.hand.length, isHost: false }; });
+    var players = g.players.map(function (p, i) { return { index: i, name: p.name, color: p.color, isBot: p.isBot, connected: true, count: p.hand.length, isHost: false, out: p.out, place: p.place }; });
     var you = app.mode === "bots" ? 0 : g.turn;
     var revealed = app.off.revealed;
+    var meOut = g.players[you] && g.players[you].out;
     var playPhase = g.phase === "play" && g.status === "playing";
-    var canCh = playPhase && !!g.lastPlay && g.lastPlay.player !== you && (app.mode === "bots" ? true : revealed);
+    var canCh = playPhase && !meOut && !!g.lastPlay && g.lastPlay.player !== you && (app.mode === "bots" ? true : revealed);
+    // Aufnehmen verdeckt (offline): Bots-Modus nur eigene Karten zeigen; Pass&Play (ein Gerät) zeigt sie.
+    var pickup = g.pickup;
+    if (pickup) {
+      var showCards = app.mode === "pass" ? true : (pickup.player === you);
+      pickup = { player: pickup.player, count: pickup.cards.length, cards: showCards ? pickup.cards : null };
+    }
     return {
       online: false, status: g.status, variant: g.variant, phase: g.phase,
       currentRank: g.currentRank, roundRank: g.roundRank, pileCount: g.pile.length,
       players: players, youIndex: you, hand: g.players[you] ? g.players[you].hand : [],
       lastPlay: g.lastPlay ? { player: g.lastPlay.player, count: g.lastPlay.count, rank: g.lastPlay.rank } : null,
-      reveal: g.reveal, pickup: g.pickup, winner: g.winner, loser: g.loser, lossReason: g.lossReason,
-      yourTurn: playPhase && (app.mode === "bots" ? g.turn === 0 : (g.turn === you && revealed)),
+      reveal: g.reveal, pickup: pickup, pendingFinish: g.pendingFinish, standings: g.standings, stats: offStatsList(),
+      winner: g.winner,
+      yourTurn: playPhase && !meOut && (app.mode === "bots" ? g.turn === 0 : (g.turn === you && revealed)),
       canChallenge: canCh,
-      passHidden: app.mode === "pass" && !revealed && playPhase,
+      passHidden: app.mode === "pass" && !revealed && playPhase && !meOut,
       youResultIndex: app.mode === "bots" ? 0 : -1, round: g.round,
       challengerIdx: you,
     };
+  }
+
+  // Offline-Session-Statistik (gleiche Form wie die Server-Statistik).
+  function offStatsList() {
+    var arr = Object.keys(app.offStats).map(function (k) {
+      var e = app.offStats[k];
+      return { name: e.name, color: e.color, p1: e.places[1] || 0, p2: e.places[2] || 0, p3: e.places[3] || 0, games: e.games };
+    });
+    arr.sort(function (a, b) { return (b.p1 - a.p1) || (b.p2 - a.p2) || (b.p3 - a.p3) || (b.games - a.games); });
+    return arr;
+  }
+  function recordOffStats(standings) {
+    if (!standings) return;
+    standings.forEach(function (entry) {
+      var p = app.off.game.players[entry.player];
+      if (!p) return;
+      var key = entry.player + "#" + p.name;
+      var e = app.offStats[key];
+      if (!e) e = app.offStats[key] = { name: p.name, color: p.color, places: {}, games: 0 };
+      e.places[entry.place] = (e.places[entry.place] || 0) + 1;
+      e.games += 1;
+    });
   }
 
   // ----------------------------------------------------------- Render-Root
@@ -365,8 +402,8 @@
     }
     append(card, el("div", { style: "margin-top:18px;" },
       big({ t: "Online spielen", icon: "🌐" }, "Mit Freunden über das Internet", "linear-gradient(180deg,#d98a63,#c2674a)", function () { app.screen = "online-setup"; render(); }),
-      big({ t: "Gegen Bots", icon: "🤖" }, "Allein gegen die KI üben", "linear-gradient(180deg,#3f93a8,#2c7689)", function () { app.mode = "bots"; app.screen = "offline-setup"; render(); }),
-      big({ t: "Pass & Play", icon: "📱" }, "Ein Gerät reihum weitergeben", "linear-gradient(180deg,#5a8c6e,#447256)", function () { app.mode = "pass"; app.screen = "offline-setup"; render(); })
+      big({ t: "Gegen Bots", icon: "🤖" }, "Allein gegen die KI üben", "linear-gradient(180deg,#3f93a8,#2c7689)", function () { app.mode = "bots"; app.offStats = {}; app.screen = "offline-setup"; render(); }),
+      big({ t: "Pass & Play", icon: "📱" }, "Ein Gerät reihum weitergeben", "linear-gradient(180deg,#5a8c6e,#447256)", function () { app.mode = "pass"; app.offStats = {}; app.screen = "offline-setup"; render(); })
     ));
     append(card, el("div", { style: "text-align:center;margin-top:18px;font-size:12px;color:#8aa39e;line-height:1.5;", text: "Lege verdeckt Karten und sage eine Zahl an — ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt." }));
     append(wrap, card);
@@ -507,7 +544,7 @@
     if (meHost) {
       append(body, el("div", { style: "display:flex;gap:10px;margin-top:16px;" },
         el("button", { onclick: function () { netSend({ t: "addBot" }); }, disabled: r.players.length >= 6, style: "flex:1;cursor:pointer;border:1px dashed rgba(31,79,94,.3);background:#fff;color:#1f4f5e;font-weight:800;font-size:15px;padding:13px;border-radius:14px;" + (r.players.length >= 6 ? "opacity:.5;" : "") }, "+ Bot")));
-      append(body, el("div", { style: "margin-top:10px;" }, primaryBtn("Spiel starten" + (r.players.length < 2 ? " (≥ 2 nötig)" : ""), function () { netSend({ t: "start" }); }, r.players.length >= 2)));
+      append(body, el("div", { style: "margin-top:10px;" }, primaryBtn("Spiel starten" + (!r.canStart ? " (≥ " + r.minPlayers + " nötig)" : ""), function () { netSend({ t: "start" }); }, r.canStart)));
     } else {
       append(body, el("div", { style: "margin-top:16px;text-align:center;color:#7e948f;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;" },
         el("span", { class: "lg-spinner", style: "width:16px;height:16px;border-width:2px;" }), "Warte auf den Host…"));
@@ -539,18 +576,27 @@
     var oppRow = el("div", { style: "flex:none;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:" + (compact ? "5px 12px" : "10px 14px") + ";padding:" + (compact ? "4px 12px 2px" : "4px 12px 6px") + ";" });
     vm.players.forEach(function (p) {
       if (p.index === vm.youIndex) return;
-      var isCur = p.index === turnOf(vm) && vm.phase === "play";
+      var isOut = p.out;
+      var isPending = vm.pendingFinish === p.index && !isOut;
+      var isCur = !isOut && p.index === turnOf(vm) && vm.phase === "play";
       var status = "";
-      if (isCur) status = p.isBot ? "denkt nach…" : "am Zug";
+      if (isOut) status = p.place ? ("Platz " + p.place) : "fertig";
+      else if (isPending) status = "fertig?";
+      else if (isCur) status = p.isBot ? "denkt nach…" : "am Zug";
       else if (vm.lastPlay && p.index === vm.lastPlay.player) status = "hat angesagt";
       else if (!p.connected) status = "offline";
-      append(oppRow, el("div", { style: "display:flex;flex-direction:column;align-items:center;gap:5px;width:96px;transition:transform .25s;transform:" + (isCur ? "scale(1.05)" : "none") + ";" },
-        el("div", { style: "position:relative;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:800;font-size:19px;color:#fff;background:" + p.color + ";"
-          + "box-shadow:" + (isCur ? "0 0 0 3px #d9a441,0 6px 16px rgba(0,0,0,.35)" : "0 6px 14px rgba(0,0,0,.3)") + ";opacity:" + (p.connected ? "1" : ".5") + ";" },
-          (p.name[0] || "?").toUpperCase(),
-          el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#15464f;color:#fbf3e2;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: String(p.count) })),
+      var medal = p.place === 1 ? "🥇" : p.place === 2 ? "🥈" : p.place === 3 ? "🥉" : (p.place ? p.place + "." : "✓");
+      var ring = isCur ? "0 0 0 3px #d9a441,0 6px 16px rgba(0,0,0,.35)"
+        : isPending ? "0 0 0 3px rgba(217,164,65,.6)" : "0 6px 14px rgba(0,0,0,.3)";
+      var avOpacity = isOut ? ".45" : (p.connected ? "1" : ".5");
+      var badge = isOut
+        ? el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#d9a441;color:#173f4c;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: medal })
+        : el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#15464f;color:#fbf3e2;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: String(p.count) });
+      append(oppRow, el("div", { style: "display:flex;flex-direction:column;align-items:center;gap:5px;width:96px;transition:transform .25s;transform:" + (isCur ? "scale(1.05)" : "none") + ";" + (isOut ? "opacity:.8;" : "") },
+        el("div", { style: "position:relative;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:800;font-size:19px;color:#fff;background:" + p.color + ";box-shadow:" + ring + ";opacity:" + avOpacity + ";" },
+          (p.name[0] || "?").toUpperCase(), badge),
         el("div", { style: "font-size:13px;font-weight:700;color:#fbf3e2;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name }),
-        el("div", { style: "font-size:11px;font-weight:600;height:15px;line-height:15px;text-align:center;color:" + (isCur ? "#d9a441" : "rgba(251,243,226,.5)") + ";", text: status })));
+        el("div", { style: "font-size:11px;font-weight:600;height:15px;line-height:15px;text-align:center;color:" + (isCur || isPending || isOut ? "#d9a441" : "rgba(251,243,226,.5)") + ";", text: status })));
     });
     append(root, oppRow);
 
@@ -593,6 +639,16 @@
   }
 
   function renderBottom(vm, compact) {
+    // Bist du schon fertig (oder gerade vorläufig fertig)? -> Zuschauer-Leiste.
+    var youP = vm.players[vm.youIndex] || {};
+    var youOut = youP.out;
+    var youPending = vm.pendingFinish === vm.youIndex && !youOut;
+    if (youOut || youPending) {
+      var msg = youOut
+        ? ("🏁 Du bist fertig" + (youP.place ? " — Platz " + youP.place : "") + ". Zuschauen bis zum Rundenende…")
+        : "Letzte Karte gelegt — warte auf Bestätigung …";
+      return el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px;text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
+    }
     var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:8px 10px 14px;" });
     var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? "Du" : nameOf(vm, vm.youIndex));
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
@@ -663,44 +719,82 @@
   }
 
   function pickupOverlay(vm) {
-    var title = (vm.pickup.player === vm.youIndex && (vm.online || app.mode === "bots")) ? "Du nimmst auf" : nameOf(vm, vm.pickup.player) + " nimmt auf";
-    var grid = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:flex-start;max-width:560px;max-height:58vh;overflow-y:auto;" });
-    vm.pickup.cards.forEach(function (c) { append(grid, smallCard(c)); });
+    var pu = vm.pickup;
+    var mine = pu.player === vm.youIndex;
+    var title = mine ? "Du nimmst auf" : nameOf(vm, pu.player) + " nimmt auf";
+    var inner;
+    if (pu.cards) {
+      // Eigene aufgenommene Karten — offen.
+      inner = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:flex-start;max-width:560px;max-height:58vh;overflow-y:auto;" });
+      pu.cards.forEach(function (c) { append(inner, smallCard(c)); });
+    } else {
+      // Fremder Spieler nimmt auf — verdeckt (nur Rücken andeuten).
+      inner = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:520px;" });
+      var n = Math.min(pu.count, 14);
+      for (var i = 0; i < n; i++) append(inner, el("div", { class: "lg-pop", style: "width:38px;height:52px;border-radius:6px;background:repeating-linear-gradient(45deg,#2e7d8f 0 7px,#246575 7px 14px);box-shadow:0 3px 8px rgba(0,0,0,.35),inset 0 0 0 2px rgba(217,164,65,.4);" }));
+    }
     return el("div", { style: "position:absolute;inset:0;z-index:55;background:rgba(16,54,64,.9);backdrop-filter:blur(5px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:26px;" },
-      el("div", { style: "font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:rgba(251,243,226,.7);font-weight:700;", text: title + " · " + vm.pickup.cards.length + " Karten" }),
-      grid);
+      el("div", { style: "font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:rgba(251,243,226,.7);font-weight:700;", text: title + " · " + pu.count + " Karten" }),
+      inner);
   }
 
-  // ----------------------------------------------------------- Game Over
+  // ----------------------------------------------------------- Game Over (Rangliste)
   function renderGameOver(vm) {
-    var isYou = function (i) { return vm.youResultIndex >= 0 && i === vm.youResultIndex; };
-    var dotBase = "width:104px;height:104px;border-radius:50%;margin:18px auto;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:800;font-size:44px;color:#fff;";
-    var initial = "?", dot = dotBase, name = "", sub = "";
-    if (vm.lossReason === "aces" && vm.loser != null) {
-      var l = vm.loser;
-      initial = (nameOf(vm, l)[0] || "?").toUpperCase();
-      dot = dotBase + "box-shadow:0 0 0 4px rgba(193,90,76,.9),0 18px 40px rgba(0,0,0,.45);background:" + colorOf(vm, l) + ";";
-      name = isYou(l) ? "Verloren!" : nameOf(vm, l) + " verliert";
-      sub = (isYou(l) ? "Du hattest" : nameOf(vm, l) + " hatte") + " alle vier Asse auf der Hand.";
-    } else if (vm.winner != null) {
-      var w = vm.winner;
-      initial = (nameOf(vm, w)[0] || "?").toUpperCase();
-      dot = dotBase + "box-shadow:0 0 0 4px rgba(217,164,65,.85),0 18px 40px rgba(0,0,0,.45);background:" + colorOf(vm, w) + ";";
-      name = isYou(w) ? "Gewonnen!" : nameOf(vm, w) + " gewinnt";
-      sub = isYou(w) ? "Du hast zuerst alle Karten abgelegt." : "Zuerst alle Karten abgelegt — stark gespielt!";
+    var st = vm.standings || [];
+    var youRes = vm.youResultIndex;
+    var myPlace = null;
+    if (youRes >= 0) { var mm = st.filter(function (s){ return s.player===youRes; })[0]; myPlace = mm ? mm.place : null; }
+    var headline = myPlace===1 ? "🏆 Gewonnen!" : myPlace===2 ? "🥈 2. Platz!" : myPlace===3 ? "🥉 3. Platz!"
+      : (myPlace!=null ? (myPlace + ". Platz") : "Endstand");
+    var medal = function (p){ return p===1?"🥇":p===2?"🥈":p===3?"🥉":(p+"."); };
+
+    var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto;" });
+    var card = el("div", { class: "lg-rise", style: "width:100%;max-width:460px;margin:auto;" });
+    append(card, el("div", { style: "text-align:center;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:rgba(251,243,226,.55);font-weight:700;", text: "Runde vorbei" }));
+    append(card, el("div", { class: "lg-pop", style: "text-align:center;font-family:'Playfair Display',serif;font-weight:800;font-size:clamp(30px,8vw,46px);color:#d9a441;line-height:1.05;margin:2px 0 14px;", text: headline }));
+
+    var board = el("div", { style: "display:flex;flex-direction:column;gap:7px;" });
+    st.forEach(function (s) {
+      var p = vm.players[s.player]; var mine = (youRes>=0 && s.player===youRes);
+      var sub = s.reason==="finished" ? "alle Karten abgelegt" : s.reason==="aces" ? "alle vier Asse" : ("noch " + (p.count||0) + " Karten");
+      append(board, el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:" + (mine?"rgba(217,164,65,.18)":"rgba(0,0,0,.22)") + ";border:1px solid " + (mine?"rgba(217,164,65,.55)":"rgba(251,243,226,.12)") + ";" },
+        el("div", { style: "width:32px;text-align:center;font-family:'Playfair Display',serif;font-weight:800;font-size:18px;color:#fbf3e2;", text: medal(s.place) }),
+        el("span", { style: "width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:" + p.color + ";", text: (p.name[0]||"?").toUpperCase() }),
+        el("div", { style: "flex:1;min-width:0;" },
+          el("div", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (mine?" (du)":"") }),
+          el("div", { style: "font-size:11px;color:rgba(251,243,226,.55);", text: sub }))));
+    });
+    append(card, board);
+
+    if (vm.stats && vm.stats.length) {
+      append(card, el("div", { style: "margin-top:18px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(251,243,226,.5);text-align:center;", text: "Statistik dieser Session" }));
+      append(card, statsTable(vm.stats));
     }
-    var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;" });
-    var inner = el("div", { class: "lg-rise", style: "text-align:center;" },
-      el("div", { style: "font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:rgba(251,243,226,.55);font-weight:700;", text: "Spiel vorbei" }),
-      el("div", { class: "lg-pop", style: dot, text: initial }),
-      el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:clamp(36px,9vw,60px);color:#d9a441;line-height:1.05;", text: name }),
-      el("div", { style: "font-size:18px;color:#fbf3e2;margin-top:6px;", text: sub }));
-    var btns = el("div", { style: "display:flex;gap:12px;justify-content:center;margin-top:30px;flex-wrap:wrap;" });
-    append(btns, el("button", { onclick: onRematch, style: "border:none;cursor:pointer;background:linear-gradient(180deg,#d98a63,#c2674a);color:#fff;font-weight:800;font-size:17px;padding:14px 30px;border-radius:14px;box-shadow:0 10px 24px rgba(194,103,74,.5),inset 0 0 0 1px rgba(255,255,255,.25);" }, "Nochmal spielen"));
-    append(btns, el("button", { onclick: onMenu, style: "border:1px solid rgba(251,243,226,.3);cursor:pointer;background:rgba(0,0,0,.2);color:#fbf3e2;font-weight:800;font-size:17px;padding:14px 30px;border-radius:14px;" }, vm.online ? "Verlassen" : "Zum Menü"));
-    append(inner, btns);
-    append(wrap, inner);
+
+    var btns = el("div", { style: "display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap;" });
+    append(btns, el("button", { onclick: onRematch, style: "border:none;cursor:pointer;background:linear-gradient(180deg,#d98a63,#c2674a);color:#fff;font-weight:800;font-size:17px;padding:13px 26px;border-radius:14px;box-shadow:0 10px 24px rgba(194,103,74,.5),inset 0 0 0 1px rgba(255,255,255,.25);" }, "Nochmal spielen"));
+    append(btns, el("button", { onclick: onMenu, style: "border:1px solid rgba(251,243,226,.3);cursor:pointer;background:rgba(0,0,0,.2);color:#fbf3e2;font-weight:800;font-size:17px;padding:13px 26px;border-radius:14px;" }, vm.online ? "Verlassen" : "Zum Menü"));
+    append(card, btns);
+    append(wrap, card);
     return wrap;
+  }
+
+  function statsTable(stats) {
+    var t = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:5px;" });
+    append(t, el("div", { style: "display:flex;align-items:center;gap:8px;padding:2px 10px;font-size:12px;color:rgba(251,243,226,.5);font-weight:700;" },
+      el("div", { style: "width:32px;" }), el("div", { style: "flex:1;", text: "Spieler" }),
+      el("div", { style: "width:30px;text-align:center;", text: "🥇" }),
+      el("div", { style: "width:30px;text-align:center;", text: "🥈" }),
+      el("div", { style: "width:30px;text-align:center;", text: "🥉" })));
+    stats.forEach(function (e) {
+      append(t, el("div", { style: "display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.2);" },
+        el("span", { style: "width:24px;height:24px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;background:" + (e.color||"#888") + ";", text: (e.name[0]||"?").toUpperCase() }),
+        el("div", { style: "flex:1;min-width:0;font-weight:700;font-size:14px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: e.name }),
+        el("div", { style: "width:30px;text-align:center;font-weight:800;color:#d9a441;", text: String(e.p1) }),
+        el("div", { style: "width:30px;text-align:center;font-weight:800;color:#fbf3e2;", text: String(e.p2) }),
+        el("div", { style: "width:30px;text-align:center;font-weight:700;color:rgba(251,243,226,.7);", text: String(e.p3) })));
+    });
+    return t;
   }
 
   // ----------------------------------------------------------- VM-Helfer
@@ -848,8 +942,10 @@
       var g = app.off.game;
       if (g.status === "over") {
         this.clearTimers();
-        var youWon = app.mode === "bots" ? (g.winner === 0) : (g.winner != null);
-        Sound[youWon ? "win" : "lose"]();
+        recordOffStats(g.standings);
+        var youPlace = null;
+        if (app.mode === "bots" && g.standings) { var m = g.standings.filter(function (s){ return s.player===0; })[0]; youPlace = m ? m.place : null; }
+        Sound[(app.mode === "bots" ? youPlace === 1 : (g.standings && g.standings[0])) ? "win" : "lose"]();
         render();
         return true;
       }
