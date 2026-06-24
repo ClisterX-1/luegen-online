@@ -9,7 +9,8 @@
   var E = window.LuegenEngine;
   var RANKS = E.RANKS, RANKLONG = E.RANKLONG;
 
-  var REVEAL_MS = 1900, PICKUP_MS = 2000, BOT_MS = 1600;
+  var REVEAL_MS = 1900, PICKUP_MS = 2000;
+  function BOT_MS() { return 2200 + Math.random() * 1600; }   // variable Bot-Bedenkzeit (~2,2–3,8 s)
 
   var THEMES = {
     "Ägäis":     { a:"#3f8fa6", b:"#246b82", edge:"#184f63", sky:"#bfe3e8", sun:"rgba(247,228,184,.32)" },
@@ -363,6 +364,7 @@
     if (!layer) { layer = el("div", { id: "lg-content", style: "position:relative;z-index:1;height:100%;" }); root.appendChild(layer); }
     clear(layer);
     append(layer, content);
+    Soundboard.ensure();
   }
 
   function render() {
@@ -398,10 +400,10 @@
     if (selected) base += "transform:translateY(-22px);box-shadow:0 14px 26px rgba(0,0,0,.4);border:2px solid #d9a441;z-index:5;";
     var sym = E.suitSym(card);
     return el("div", { style: base, onclick: clickable ? onClick : null },
-      el("span", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:15px;line-height:1;position:absolute;top:5px;left:6px;", text: card.rank }),
+      el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:15px;line-height:1;position:absolute;top:5px;left:6px;", text: card.rank }),
       el("span", { style: "position:absolute;top:20px;left:7px;font-size:11px;line-height:1;", text: sym }),
       el("span", { style: "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:30px;line-height:1;", text: sym }),
-      el("span", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:15px;line-height:1;position:absolute;bottom:5px;right:6px;transform:rotate(180deg);", text: card.rank })
+      el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:15px;line-height:1;position:absolute;bottom:5px;right:6px;transform:rotate(180deg);", text: card.rank })
     );
   }
   function revealCard(card, matchRank) {
@@ -410,15 +412,15 @@
     var st = "position:relative;width:64px;height:90px;border-radius:8px;background:linear-gradient(160deg,#fffdf6,#f4ead2);display:flex;flex-direction:column;justify-content:space-between;padding:6px;color:" + ink + ";"
       + "box-shadow:0 8px 20px rgba(0,0,0,.4),0 0 0 2px " + (ok ? "#5a8c6e" : "#c15a4c") + ";";
     return el("div", { style: st, class: "lg-pop" },
-      el("span", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:17px;line-height:1;", text: card.rank }),
+      el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:17px;line-height:1;", text: card.rank }),
       el("span", { style: "text-align:center;font-size:26px;line-height:1;", text: E.suitSym(card) }),
-      el("span", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:17px;line-height:1;text-align:right;", text: card.rank })
+      el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:17px;line-height:1;text-align:right;", text: card.rank })
     );
   }
   function smallCard(card) {
     var ink = E.cardInk(card).color;
     return el("div", { style: "position:relative;flex:none;width:44px;height:60px;border-radius:6px;background:linear-gradient(160deg,#fffdf6,#f4ead2);box-shadow:0 4px 10px rgba(0,0,0,.35);color:" + ink + ";", class: "lg-pop" },
-      el("span", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:13px;line-height:1;position:absolute;top:3px;left:5px;", text: card.rank }),
+      el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:13px;line-height:1;position:absolute;top:3px;left:5px;", text: card.rank }),
       el("span", { style: "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:22px;line-height:1;", text: E.suitSym(card) })
     );
   }
@@ -457,8 +459,8 @@
     var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto;" });
     var card = el("div", { class: "lg-rise", style: "width:100%;max-width:440px;background:linear-gradient(180deg,#fdf6e9,#f6e8cf);border-radius:22px;padding:36px 30px 30px;box-shadow:0 30px 80px rgba(0,0,0,.4),0 0 0 1px rgba(217,164,65,.4),inset 0 0 0 4px rgba(255,255,255,.5);color:#173f4c;" });
     append(card, el("div", { style: "text-align:center;" },
-      el("div", { style: "font-family:'Playfair Display',serif;font-style:italic;color:#cf7457;font-size:14px;letter-spacing:.18em;text-transform:uppercase;", text: "Das Kartenspiel" }),
-      el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:clamp(48px,13vw,68px);line-height:.95;color:#173f4c;", text: "Lügen" }),
+      el("div", { style: "font-family:'Fraunces',serif;font-style:italic;color:#cf7457;font-size:14px;letter-spacing:.18em;text-transform:uppercase;", text: "Das Kartenspiel" }),
+      el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:clamp(48px,13vw,68px);line-height:.95;color:#173f4c;", text: "Lügen" }),
       el("div", { style: "display:flex;align-items:center;gap:10px;justify-content:center;margin-top:8px;color:#6f8a86;" },
         el("span", { style: "height:1px;width:34px;background:#d9a441;" }),
         el("span", { style: "font-size:13px;letter-spacing:.06em;", text: "Bluffen · ansagen · entlarven" }),
@@ -535,7 +537,7 @@
     var f = app.onlineForm;
     var body = el("div", {});
     append(body, backLink(function () { app.screen = "home"; render(); }));
-    append(body, el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:34px;color:#173f4c;margin-bottom:4px;", text: "Online spielen" }));
+    append(body, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:34px;color:#173f4c;margin-bottom:4px;", text: "Online spielen" }));
     append(body, el("div", { style: "font-size:13px;color:#7e948f;margin-bottom:18px;", text: "Erstelle einen Raum und teile den Code — oder tritt mit einem Code bei." }));
 
     // Name
@@ -565,7 +567,7 @@
     var codeInput = el("input", {
       value: f.code || "", placeholder: "z. B. ABCD", maxlength: 4,
       oninput: function (e) { f.code = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); e.target.value = f.code; },
-      style: "width:100%;border:1px solid rgba(31,79,94,.18);outline:none;background:#fff;border-radius:12px;padding:12px 14px;font-size:24px;font-weight:800;letter-spacing:.3em;text-align:center;color:#173f4c;font-family:'Playfair Display',serif;text-transform:uppercase;",
+      style: "width:100%;border:1px solid rgba(31,79,94,.18);outline:none;background:#fff;border-radius:12px;padding:12px 14px;font-size:24px;font-weight:800;letter-spacing:.3em;text-align:center;color:#173f4c;font-family:'Fraunces',serif;text-transform:uppercase;",
     });
     append(body, codeInput);
     append(body, el("div", { style: "margin-top:12px;" }, el("button", {
@@ -590,12 +592,12 @@
     var body = el("div", {});
     append(body, el("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;" },
       el("button", { onclick: leaveToHome, style: "cursor:pointer;border:none;background:none;color:#86a09b;font-weight:700;font-size:14px;padding:0;" }, "‹ Verlassen"),
-      el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:22px;color:#173f4c;", text: "Lobby" })));
+      el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:22px;color:#173f4c;", text: "Lobby" })));
 
     // Code + share
     append(body, el("div", { style: "background:#fff;border:1px solid rgba(31,79,94,.14);border-radius:16px;padding:16px;text-align:center;" },
       el("div", { style: "font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#86a09b;", text: "Raum-Code" }),
-      el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:44px;letter-spacing:.18em;color:#cf7457;line-height:1.1;", text: r.code }),
+      el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:44px;letter-spacing:.18em;color:#cf7457;line-height:1.1;", text: r.code }),
       el("div", { style: "display:flex;gap:8px;justify-content:center;margin-top:6px;" },
         el("button", { onclick: function () { copy(r.code, "Code kopiert!"); }, style: shareBtnStyle() }, "Code kopieren"),
         el("button", { onclick: function () { copy(location.origin + "/?room=" + r.code, "Einladungslink kopiert!"); }, style: shareBtnStyle() }, "Link kopieren"))));
@@ -606,12 +608,11 @@
       pill(r.variant === "same", "Gleiche Zahl", "Immer dieselbe Zahl", function () { netSend({ t: "setVariant", variant: "same" }); }),
       pill(r.variant === "asc", "Aufsteigend", "2, 3, 4 … der Reihe nach", function () { netSend({ t: "setVariant", variant: "asc" }); })));
 
-    // Bot-Stärke (nur wenn Bots im Raum sind)
-    if (r.hasBots) {
-      append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Bot-Stärke" + (meHost ? "" : " (legt der Host fest)"))));
-      append(body, el("div", { style: meHost ? "" : "opacity:.7;pointer-events:none;" },
-        levelPicker(r.botLevel, function (lv) { netSend({ t: "setBotLevel", level: lv }); })));
-    }
+    // Bot-Stärke (immer sichtbar; wirkt für Bots im Raum)
+    append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Bot-Stärke" + (meHost ? "" : " (legt der Host fest)"))));
+    append(body, el("div", { style: meHost ? "" : "opacity:.7;pointer-events:none;" },
+      levelPicker(r.botLevel, function (lv) { netSend({ t: "setBotLevel", level: lv }); })));
+    if (!r.hasBots) append(body, el("div", { style: "font-size:11px;color:#9bb0aa;margin-top:6px;text-align:center;", text: "Gilt für Bots — unten mit „+ Bot“ welche hinzufügen." }));
 
     // Players
     append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Spieler · " + r.players.length + "/6")));
@@ -655,10 +656,10 @@
     var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "—");
     append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:10px;" },
       el("button", { onclick: onMenu, style: "background:rgba(0,0,0,.22);border:1px solid rgba(251,243,226,.2);color:#fbf3e2;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;" }, "‹ Menü"),
-      el("div", { style: "font-family:'Playfair Display',serif;font-weight:700;font-style:italic;letter-spacing:.16em;font-size:15px;color:rgba(251,243,226,.85);", text: "L Ü G E N" }),
+      el("div", { style: "font-family:'Fraunces',serif;font-weight:700;font-style:italic;letter-spacing:.16em;font-size:15px;color:rgba(251,243,226,.85);", text: "L Ü G E N" }),
       el("div", { style: "display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.22);border:1px solid rgba(217,164,65,.45);border-radius:10px;padding:7px 12px;" },
         el("span", { style: "font-size:11px;color:rgba(251,243,226,.6);font-weight:700;letter-spacing:.05em;", text: "ANSAGE" }),
-        el("span", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:18px;color:#d9a441;line-height:1;", text: anker }))));
+        el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:18px;color:#d9a441;line-height:1;", text: anker }))));
 
     // Gegner
     var oppRow = el("div", { style: "flex:none;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:" + (compact ? "5px 12px" : "10px 14px") + ";padding:" + (compact ? "4px 12px 2px" : "4px 12px 6px") + ";" });
@@ -681,7 +682,7 @@
         ? el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#d9a441;color:#173f4c;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: medal })
         : el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#15464f;color:#fbf3e2;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: String(p.count) });
       append(oppRow, el("div", { style: "display:flex;flex-direction:column;align-items:center;gap:5px;width:96px;transition:transform .25s;transform:" + (isCur ? "scale(1.05)" : "none") + ";" + (isOut ? "opacity:.8;" : "") },
-        el("div", { style: "position:relative;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:800;font-size:19px;color:#fff;background:" + p.color + ";box-shadow:" + ring + ";opacity:" + avOpacity + ";" },
+        el("div", { style: "position:relative;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:800;font-size:19px;color:#fff;background:" + p.color + ";box-shadow:" + ring + ";opacity:" + avOpacity + ";" },
           (p.name[0] || "?").toUpperCase(), badge),
         el("div", { style: "font-size:13px;font-weight:700;color:#fbf3e2;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name }),
         el("div", { style: "font-size:11px;font-weight:600;height:15px;line-height:15px;text-align:center;color:" + (isCur || isPending || isOut ? "#d9a441" : "rgba(251,243,226,.5)") + ";", text: status })));
@@ -693,7 +694,7 @@
     if (vm.lastPlay && vm.phase !== "reveal") {
       append(center, el("div", { style: "text-align:center;" },
         el("div", { style: "font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;", text: (vm.lastPlay.player === vm.youIndex ? "Du sagst" : nameOf(vm, vm.lastPlay.player) + " sagt") }),
-        el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:clamp(22px,5vw,32px);color:#d9a441;line-height:1.05;margin-top:2px;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) })));
+        el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:clamp(22px,5vw,32px);color:#d9a441;line-height:1.05;margin-top:2px;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) })));
     }
     var pileRegion = el("div", { style: "position:relative;height:" + (compact ? "112px" : "128px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.phase === "reveal" && vm.reveal) {
@@ -770,7 +771,7 @@
       RANKS.forEach(function (r, i) {
         if (r === "A") return;
         var on = i === effPick;
-        var st = "flex:none;min-width:34px;height:40px;border-radius:8px;border:1px solid;cursor:pointer;font-family:'Playfair Display',serif;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0 6px;"
+        var st = "flex:none;min-width:34px;height:40px;border-radius:8px;border:1px solid;cursor:pointer;font-family:'Fraunces',serif;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0 6px;"
           + (on ? "background:#d9a441;color:#173f4c;border-color:#d9a441;transform:translateY(-2px);box-shadow:0 4px 10px rgba(217,164,65,.5);" : "background:rgba(255,253,246,.92);color:#173f4c;border-color:rgba(0,0,0,.12);");
         append(chips, el("button", { style: st, onclick: function () { app.ui.pickRank = i; render(); } }, r));
       });
@@ -801,8 +802,8 @@
     var p = vm.players[t];
     return el("div", { style: "position:absolute;inset:0;z-index:50;background:rgba(16,54,64,.93);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:30px;" },
       el("div", { style: "font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;", text: "Gerät weitergeben an" }),
-      el("div", { style: "width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:800;font-size:34px;color:#fff;background:" + p.color + ";", text: (p.name[0] || "?").toUpperCase() }),
-      el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:34px;color:#fbf3e2;", text: p.name }),
+      el("div", { style: "width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:800;font-size:34px;color:#fff;background:" + p.color + ";", text: (p.name[0] || "?").toUpperCase() }),
+      el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:34px;color:#fbf3e2;", text: p.name }),
       el("button", { onclick: function () { Offline.reveal(); }, style: "margin-top:6px;border:none;cursor:pointer;background:linear-gradient(180deg,#d98a63,#c2674a);color:#fff;font-weight:800;font-size:17px;padding:14px 34px;border-radius:30px;box-shadow:0 10px 24px rgba(194,103,74,.5),inset 0 0 0 1px rgba(255,255,255,.25);" }, "Hand aufdecken"));
   }
 
@@ -839,14 +840,14 @@
     var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto;" });
     var card = el("div", { class: "lg-rise", style: "width:100%;max-width:460px;margin:auto;" });
     append(card, el("div", { style: "text-align:center;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:rgba(251,243,226,.55);font-weight:700;", text: "Runde vorbei" }));
-    append(card, el("div", { class: "lg-pop", style: "text-align:center;font-family:'Playfair Display',serif;font-weight:800;font-size:clamp(30px,8vw,46px);color:#d9a441;line-height:1.05;margin:2px 0 14px;", text: headline }));
+    append(card, el("div", { class: "lg-pop", style: "text-align:center;font-family:'Fraunces',serif;font-weight:800;font-size:clamp(30px,8vw,46px);color:#d9a441;line-height:1.05;margin:2px 0 14px;", text: headline }));
 
     var board = el("div", { style: "display:flex;flex-direction:column;gap:7px;" });
     st.forEach(function (s) {
       var p = vm.players[s.player]; var mine = (youRes>=0 && s.player===youRes);
       var sub = s.reason==="finished" ? "alle Karten abgelegt" : s.reason==="aces" ? "alle vier Asse" : ("noch " + (p.count||0) + " Karten");
       append(board, el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:" + (mine?"rgba(217,164,65,.18)":"rgba(0,0,0,.22)") + ";border:1px solid " + (mine?"rgba(217,164,65,.55)":"rgba(251,243,226,.12)") + ";" },
-        el("div", { style: "width:32px;text-align:center;font-family:'Playfair Display',serif;font-weight:800;font-size:18px;color:#fbf3e2;", text: medal(s.place) }),
+        el("div", { style: "width:32px;text-align:center;font-family:'Fraunces',serif;font-weight:800;font-size:18px;color:#fbf3e2;", text: medal(s.place) }),
         el("span", { style: "width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:" + p.color + ";", text: (p.name[0]||"?").toUpperCase() }),
         el("div", { style: "flex:1;min-width:0;" },
           el("div", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (mine?" (du)":"") }),
@@ -1022,7 +1023,7 @@
           var dec = E.botDecide(gg, app.offCfg.botLevel);
           if (dec.action === "challenge") self.challenge(gg.turn);
           else self.botPlay(gg.turn, dec.cardIds, dec.rank);
-        }, BOT_MS);
+        }, BOT_MS());
       }
     },
     reveal: function () { app.off.revealed = true; render(); },
@@ -1051,7 +1052,7 @@
     var isBots = app.mode === "bots";
     var body = el("div", {});
     append(body, backLink(function () { app.screen = "home"; app.mode = null; render(); }));
-    append(body, el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:32px;color:#173f4c;margin-bottom:2px;", text: isBots ? "Gegen Bots" : "Pass & Play" }));
+    append(body, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:32px;color:#173f4c;margin-bottom:2px;", text: isBots ? "Gegen Bots" : "Pass & Play" }));
     append(body, el("div", { style: "font-size:13px;color:#7e948f;margin-bottom:16px;", text: isBots ? "Du gegen KI-Gegner auf diesem Gerät." : "Reihum auf einem Gerät — Hand wird zwischendurch verdeckt." }));
 
     append(body, sectionLabel("Variante"));
@@ -1068,7 +1069,7 @@
     append(body, el("div", { style: "display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid rgba(31,79,94,.14);border-radius:14px;padding:8px 10px;" },
       el("button", { onclick: function () { cfg.numPlayers = Math.max(3, cfg.numPlayers - 1); render(); }, style: stepBtn() }, "–"),
       el("div", { style: "text-align:center;" },
-        el("div", { style: "font-family:'Playfair Display',serif;font-weight:800;font-size:30px;line-height:1;color:#173f4c;", text: String(cfg.numPlayers) }),
+        el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:30px;line-height:1;color:#173f4c;", text: String(cfg.numPlayers) }),
         el("div", { style: "font-size:11px;color:#86a09b;", text: "3 – 6 Spieler" })),
       el("button", { onclick: function () { cfg.numPlayers = Math.min(6, cfg.numPlayers + 1); render(); }, style: stepBtn() }, "+")));
 
@@ -1104,7 +1105,10 @@
       var input = el("input", { placeholder: "Nachricht…", maxlength: 200 });
       var form = el("form", { onsubmit: function (e) { e.preventDefault(); var t = input.value.trim(); if (t) { netSend({ t: "chat", text: t }); input.value = ""; } } },
         input, el("button", { class: "send", type: "submit" }, "Senden"));
-      this.panel = el("div", { class: "panel", style: "display:none;" }, this.log, form);
+      var head = el("div", { style: "display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex:none;" },
+        el("span", { style: "font-weight:800;color:#fbf3e2;font-size:14px;" }, "Chat"),
+        el("button", { type: "button", "aria-label": "Chat schließen", onclick: function () { self.toggle(); }, style: "border:none;background:rgba(255,255,255,.12);color:#fbf3e2;cursor:pointer;width:28px;height:28px;border-radius:8px;font-size:15px;font-weight:800;line-height:1;flex:none;" }, "✕"));
+      this.panel = el("div", { class: "panel", style: "display:none;" }, head, this.log, form);
       this.toggleBtn = el("button", { class: "lg-chat-toggle", onclick: function () { self.toggle(); } }, el("span", {}, "💬 Chat"), el("span", { class: "lg-chat-badge", style: "display:none;" }, "0"));
       this.el = el("div", { id: "lg-chat" }, this.toggleBtn, this.panel);
       document.body.appendChild(this.el);
@@ -1143,8 +1147,73 @@
     remove: function () { if (this.el) { this.el.remove(); this.el = null; this.rendered = 0; this.open = false; } },
   };
 
+  // ----------------------------------------------------------- Meme-Soundboard (optional, unten links)
+  var Soundboard = {
+    el: null, panel: null, toggleBtn: null, open: false,
+    // Meme-Clips (MP3) im Ordner sounds/.
+    items: [
+      { label: "🥺 UwU", file: "sounds/uwu.mp3" },
+      { label: "💥 Thud", file: "sounds/thud-sound-effect.mp3" },
+      { label: "📮 Sus", file: "sounds/sus-meme-sound.mp3" },
+      { label: "😱 Holy Moly", file: "sounds/holy_moly.mp3" },
+      { label: "💨 Fah", file: "sounds/fah.mp3" },
+      { label: "😎 Rizz", file: "sounds/Rizz.mp3" },
+      { label: "🚪 Get OUT", file: "sounds/Get_OUT.mp3" },
+      { label: "🌈 Gay", file: "sounds/Gay.mp3" },
+    ],
+    ensure: function () {
+      var show = (app.screen === "online-room") || (app.screen === "offline-play");
+      if (!show) { this.remove(); return; }
+      if (!this.el) this.build();
+    },
+    build: function () {
+      var self = this;
+      this.panel = el("div", { class: "sb-panel", style: "display:none;" });
+      this.items.forEach(function (it) {
+        append(self.panel, el("button", { class: "sb-btn", title: it.label, onclick: function () { Sound.unlock(); self.play(it); } }, it.label));
+      });
+      this.toggleBtn = el("button", { class: "lg-dock-toggle", onclick: function () { self.toggle(); } }, "🎵 Sounds");
+      this.el = el("div", { id: "lg-soundboard" }, this.panel, this.toggleBtn);
+      document.body.appendChild(this.el);
+    },
+    toggle: function () {
+      this.open = !this.open;
+      this.panel.style.display = this.open ? "grid" : "none";
+      this.toggleBtn.textContent = this.open ? "🎵 zu" : "🎵 Sounds";
+    },
+    play: function (it) {
+      if (it.file) { try { var a = new Audio(it.file); a.volume = 0.9; a.play(); } catch (e) {} }
+      else if (it.synth) it.synth();
+    },
+    remove: function () { if (this.el) { this.el.remove(); this.el = null; this.open = false; } },
+  };
+
   // ----------------------------------------------------------- Boot
   function init() {
+    // Titelschrift Fraunces laden (per Code, damit index.html unverändert bleibt).
+    if (!$("lg-fonts")) {
+      var lk = document.createElement("link");
+      lk.id = "lg-fonts"; lk.rel = "stylesheet";
+      lk.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,600;1,9..144,700&display=swap";
+      document.head.appendChild(lk);
+    }
+    if (!$("lg-extra-css")) {
+      var st = document.createElement("style"); st.id = "lg-extra-css";
+      st.textContent =
+        "#lg-soundboard{position:fixed;left:0;bottom:0;z-index:60;display:flex;flex-direction:column;align-items:flex-start;}" +
+        "#lg-soundboard .sb-panel{width:min(300px,90vw);background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.4);border-left:none;border-radius:0 14px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.5);padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:48vh;overflow-y:auto;}" +
+        "#lg-soundboard .sb-btn{cursor:pointer;border:1px solid rgba(217,164,65,.4);background:rgba(255,255,255,.06);color:#fbf3e2;font-weight:700;font-size:13px;border-radius:10px;padding:11px 8px;text-align:center;}" +
+        "#lg-soundboard .sb-btn:active{transform:scale(.95);background:rgba(217,164,65,.25);}" +
+        ".lg-dock-toggle{margin:10px;cursor:pointer;border:1px solid rgba(217,164,65,.5);background:rgba(16,54,64,.92);color:#fbf3e2;font-weight:800;font-size:13px;border-radius:22px;padding:9px 14px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:inline-flex;align-items:center;gap:6px;}" +
+        "@media(max-width:560px){" +
+        "#lg-chat .panel{width:100vw;height:60vh;max-height:440px;border-radius:14px 14px 0 0;border-right:none;}" +
+        "#lg-chat input{font-size:16px;}" +
+        "#lg-soundboard .sb-panel{width:100vw;border-radius:0;}" +
+        "#lg-soundboard .sb-btn{font-size:15px;padding:13px 8px;}" +
+        "#lg-chat .lg-chat-toggle,#lg-soundboard .lg-dock-toggle{margin-bottom:14px;font-size:12px;padding:8px 12px;}" +
+        "}";
+      document.head.appendChild(st);
+    }
     if (!$("lg-toast")) document.body.appendChild(el("div", { id: "lg-toast" }));
     // ?room=CODE vorbefüllen
     var params = new URLSearchParams(location.search);
