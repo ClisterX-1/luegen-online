@@ -10,24 +10,74 @@
   var RANKS = E.RANKS, RANKLONG = E.RANKLONG;
 
   var REVEAL_MS = 1900, PICKUP_MS = 2000;
-  function BOT_MS() { return 2200 + Math.random() * 1600; }   // variable Bot-Bedenkzeit (~2,2–3,8 s)
+  function BOT_MS() { return 3000 + Math.random() * 4000; }   // variable Bot-Bedenkzeit (~3–7 s)
 
-  var THEMES = {
-    "Ägäis":     { a:"#3f8fa6", b:"#246b82", edge:"#184f63", sky:"#bfe3e8", sun:"rgba(247,228,184,.32)" },
-    "Santorini": { a:"#d98a6a", b:"#9c5a6e", edge:"#523a55", sky:"#f6d6c0", sun:"rgba(255,226,184,.34)" },
-    "Strand":    { a:"#5bb0b0", b:"#2f8a90", edge:"#1f6b72", sky:"#d6f1ee", sun:"rgba(250,236,200,.36)" },
-  };
-  function bgCss(name) {
-    var t = THEMES[name] || THEMES["Ägäis"];
-    return "background:" + [
-      "radial-gradient(135% 115% at 50% 34%, transparent 50%, rgba(0,0,0,.32) 100%)",
-      "radial-gradient(circle at 80% 13%, rgba(255,250,232,.95) 0 1.5%, rgba(255,242,208,.55) 2.3% 4.3%, transparent 8.5%)",
-      "radial-gradient(120% 52% at 80% 9%, " + t.sun + ", transparent 55%)",
-      "repeating-linear-gradient(179deg, rgba(255,255,255,.045) 0 2px, transparent 2px 13px)",
-      "linear-gradient(180deg, transparent 56%, rgba(233,208,166,.42) 76%, rgba(212,182,136,.7) 92%)",
-      "linear-gradient(180deg, " + t.sky + " 0%, " + t.a + " 32%, " + t.b + " 64%, " + t.edge + " 100%)"
-    ].join(",") + ";";
-  }
+  // ---------------------------------------------- Tag-Nacht-Zyklus (Dauerschleife)
+  // Laeuft endlos: Morgenrot, Sonnenaufgang, Mittag, Goldene Stunde, Sonnenuntergang,
+  // Daemmerung mit Sternen, Nacht, dann wieder heller. Periode ~18 Min, zufaelliger Start am Tag.
+  var DAY = (function () {
+    var PERIOD = 1080; // Sekunden pro kompletter Tag
+    // Phasen 0..1 (erste == letzte fuer nahtlose Schleife).
+    // sky=4 Stops, sea=3, sand=2; sun={x,y,s,glow,mid,core,op}; star/dark/glint = 0..1
+    var K = [
+      { t:0.00, sky:["#3A4E73","#7E6F93","#E0976B","#F4C98A"], sea:["#2C5A6E","#3A6E80","#C98E73"], sand:["#D7BC92","#C0A06E"], sun:{x:120,y:322,s:1.05,glow:"#FF9E5A",mid:"#FFC078",core:"#FFE2AE",op:0.55}, star:0.22, dark:0.30, glint:0.25 },
+      { t:0.10, sky:["#2E6E9E","#6AA0C3","#EAB877","#F6D9A0"], sea:["#2C7888","#2F8C8E","#79C8BC"], sand:["#E9D5A6","#D4B988"], sun:{x:250,y:198,s:0.92,glow:"#FBD98A",mid:"#FCE3A0",core:"#FFF1C6",op:0.55}, star:0.00, dark:0.06, glint:0.70 },
+      { t:0.28, sky:["#1E78B4","#5AA7D0","#AEDAE8","#E2F4F4"], sea:["#1597A4","#22B0AC","#8FE3D4"], sand:["#F1E3BE","#DEC79A"], sun:{x:430,y:80,s:0.82,glow:"#FFF6D0",mid:"#FFFBE8",core:"#FFFFFF",op:0.50}, star:0.00, dark:0.00, glint:1.00 },
+      { t:0.48, sky:["#236E9E","#5E9DBE","#D9B98A","#F0D9A8"], sea:["#207C88","#2F8C8E","#7EC8BC"], sand:["#ECD8A6","#D4B988"], sun:{x:600,y:150,s:0.95,glow:"#FDE39A",mid:"#FCE3A0",core:"#FFF6D6",op:0.55}, star:0.00, dark:0.03, glint:0.85 },
+      { t:0.62, sky:["#235C73","#6E9FB0","#EAB877","#F4D49E"], sea:["#2C7888","#2F8C8E","#79C8BC"], sand:["#E9D5A6","#D4B988"], sun:{x:690,y:248,s:1.12,glow:"#FBB36A",mid:"#FFC074",core:"#FFE6AE",op:0.60}, star:0.00, dark:0.08, glint:0.60 },
+      { t:0.72, sky:["#2A2E63","#7E4C82","#D2735C","#F4B26A"], sea:["#244F66","#3D6E80","#D79A6E"], sand:["#E3C089","#C49A62"], sun:{x:725,y:320,s:1.32,glow:"#FF8A4A",mid:"#FFB060",core:"#FFD89A",op:0.62}, star:0.12, dark:0.22, glint:0.40 },
+      { t:0.80, sky:["#221E50","#553A6E","#9C5E6E","#C77E5E"], sea:["#1E3E55","#33566E","#9C6E5E"], sand:["#B79A78","#9A7E5E"], sun:{x:770,y:382,s:1.20,glow:"#C66A4A",mid:"#A85A44",core:"#8A4A38",op:0.00}, star:0.55, dark:0.48, glint:0.15 },
+      { t:0.90, sky:["#0B1430","#16264A","#243B63","#3A4E73"], sea:["#0C1A30","#16304A","#27506A"], sand:["#3E4458","#2C3142"], sun:{x:780,y:420,s:1.00,glow:"#16264A",mid:"#16264A",core:"#16264A",op:0.00}, star:1.00, dark:0.72, glint:0.00 },
+      { t:0.97, sky:["#1A2747","#3A4E73","#7E6F93","#C99A78"], sea:["#15303F","#2C5060","#5E8090"], sand:["#6E6E7A","#54545E"], sun:{x:90,y:360,s:1.00,glow:"#5E5A6E",mid:"#7E6F93",core:"#A98A78",op:0.00}, star:0.42, dark:0.50, glint:0.05 },
+      { t:1.00, sky:["#3A4E73","#7E6F93","#E0976B","#F4C98A"], sea:["#2C5A6E","#3A6E80","#C98E73"], sand:["#D7BC92","#C0A06E"], sun:{x:120,y:322,s:1.05,glow:"#FF9E5A",mid:"#FFC078",core:"#FFE2AE",op:0.55}, star:0.22, dark:0.30, glint:0.25 }
+    ];
+    function lerp(a,b,f){ return a + (b-a)*f; }
+    function hx(c){ c=c.replace("#",""); return [parseInt(c.substr(0,2),16),parseInt(c.substr(2,2),16),parseInt(c.substr(4,2),16)]; }
+    function mix(c1,c2,f){ var a=hx(c1),b=hx(c2); return "rgb("+Math.round(lerp(a[0],b[0],f))+","+Math.round(lerp(a[1],b[1],f))+","+Math.round(lerp(a[2],b[2],f))+")"; }
+    function sample(t){
+      t=((t%1)+1)%1;
+      var i=0; while(i<K.length-1 && t>=K[i+1].t) i++;
+      var a=K[i], b=K[i+1]||K[i], span=(b.t-a.t)||1, f=(t-a.t)/span;
+      return {
+        sky:  a.sky.map(function(c,j){ return mix(c,b.sky[j],f); }),
+        sea:  a.sea.map(function(c,j){ return mix(c,b.sea[j],f); }),
+        sand: a.sand.map(function(c,j){ return mix(c,b.sand[j],f); }),
+        sun:  { x:lerp(a.sun.x,b.sun.x,f), y:lerp(a.sun.y,b.sun.y,f), s:lerp(a.sun.s,b.sun.s,f),
+                glow:mix(a.sun.glow,b.sun.glow,f), mid:mix(a.sun.mid,b.sun.mid,f), core:mix(a.sun.core,b.sun.core,f), op:lerp(a.sun.op,b.sun.op,f) },
+        star:lerp(a.star,b.star,f), dark:lerp(a.dark,b.dark,f), glint:lerp(a.glint,b.glint,f)
+      };
+    }
+    // Sterne einmalig erzeugen (deterministisch, damit sie beim Bildwechsel nicht springen).
+    var seed=20260624, stars="";
+    function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+    for (var n=0; n<48; n++){
+      var sx=(8+rnd()*784).toFixed(0), sy=(16+rnd()*284).toFixed(0), sr=(0.7+rnd()*1.5).toFixed(2);
+      var du=(2.6+rnd()*3.4).toFixed(1), bgn=(-rnd()*5).toFixed(1), o=(0.5+rnd()*0.5).toFixed(2);
+      stars += '<circle cx="'+sx+'" cy="'+sy+'" r="'+sr+'" fill="#FBFBFF" opacity="'+o+'"><animate attributeName="opacity" values="'+(o*0.3).toFixed(2)+';'+o+';'+(o*0.3).toFixed(2)+'" dur="'+du+'s" begin="'+bgn+'s" repeatCount="indefinite"/></circle>';
+    }
+    var timer = null;
+    // Globale Weltzeit als Taktgeber: alle Geraete zeigen zur selben Sekunde dieselbe Tageszeit.
+    function nowT(){ return (Date.now() / 1000 % PERIOD) / PERIOD; }
+    function apply(){
+      var bg=document.getElementById("lg-bg"); if(!bg) return;
+      var p=sample(nowT()), i, st, e;
+      st=bg.querySelectorAll("#sk stop"); for(i=0;i<st.length;i++) st[i].setAttribute("stop-color", p.sky[i]);
+      st=bg.querySelectorAll("#se stop"); for(i=0;i<st.length;i++) st[i].setAttribute("stop-color", p.sea[i]);
+      st=bg.querySelectorAll("#sa stop"); for(i=0;i<st.length;i++) st[i].setAttribute("stop-color", p.sand[i]);
+      var sun=bg.querySelector("#lg-sun");
+      if(sun){ var pulse=1+0.02*Math.sin(Date.now()/1500);
+        sun.setAttribute("transform","translate("+p.sun.x.toFixed(1)+" "+p.sun.y.toFixed(1)+") scale("+(p.sun.s*pulse).toFixed(3)+")");
+        sun.setAttribute("opacity", p.sun.op.toFixed(3));
+        var c=sun.children; if(c[0])c[0].setAttribute("fill",p.sun.glow); if(c[1])c[1].setAttribute("fill",p.sun.mid); if(c[2])c[2].setAttribute("fill",p.sun.core);
+      }
+      if((e=bg.querySelector("#lg-stars"))) e.setAttribute("opacity", p.star.toFixed(3));
+      if((e=bg.querySelector("#lg-moon"))) e.setAttribute("opacity", Math.max(0,(p.star-0.3)/0.7).toFixed(3));
+      if((e=bg.querySelector("#lg-dark"))) e.setAttribute("opacity", (p.dark*0.7).toFixed(3));
+      if((e=bg.querySelector("#lg-glints"))) e.setAttribute("opacity", (p.glint*0.6).toFixed(3));
+    }
+    function ensure(){ if(!timer) timer=setInterval(apply, 400); }
+    return { stars:stars, apply:apply, ensure:ensure, sample:sample, PERIOD:PERIOD, nowT:nowT };
+  })();
 
   // ----------------------------------------------------------- DOM-Helfer
   function el(tag, attrs) {
@@ -73,8 +123,27 @@
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.start(t); o.stop(t + dur + 0.02);
     }
+    var clips = {};   // id -> AudioBuffer (vorgeladene MP3s -> sofortiges Abspielen, keine Verzögerung)
+    function loadClips(list) {
+      var c = ac(); if (!c) return;
+      list.forEach(function (it) {
+        if (!it.file || clips[it.id] !== undefined) return;
+        clips[it.id] = null; // lädt gerade
+        fetch(it.file).then(function (r) { return r.arrayBuffer(); })
+          .then(function (b) { return c.decodeAudioData(b); })
+          .then(function (buf) { clips[it.id] = buf; })
+          .catch(function () { delete clips[it.id]; });
+      });
+    }
+    function playClip(id) {
+      var c = ac(), buf = clips[id];
+      if (c && buf) { try { var s = c.createBufferSource(); s.buffer = buf; var g = c.createGain(); g.gain.value = 0.9; s.connect(g); g.connect(c.destination); s.start(); return true; } catch (e) {} }
+      return false;
+    }
     return {
       unlock: unlock,
+      loadClips: loadClips,
+      playClip: playClip,
       setEnabled: function (v) { enabled = v; localStorage.setItem("luegen.sound", v ? "1" : "0"); },
       isEnabled: function () { return enabled; },
       play: function () { tone(430, 0.08, "triangle", 0.11); tone(300, 0.10, "sine", 0.07, 0.02); },
@@ -92,7 +161,6 @@
   var app = {
     screen: "home",          // home | online-setup | offline-setup | online-room | offline-play
     mode: null,              // online | bots | pass
-    theme: localStorage.getItem("luegen.theme") || "Ägäis",
     net: null, code: null, token: null, room: null,
     leaving: false, reconnecting: false,
     ui: { selected: {}, pickRank: null },
@@ -117,7 +185,7 @@
     app.banner.text = text; app.banner.on = true;
     if (app.banner.timer) clearTimeout(app.banner.timer);
     render();
-    app.banner.timer = setTimeout(function () { app.banner.on = false; render(); }, 2600);
+    app.banner.timer = setTimeout(function () { app.banner.on = false; render(); }, 4000);
   }
 
   // ----------------------------------------------------------- Netzwerk
@@ -214,6 +282,7 @@
         break;
       }
       case "gameover": break; // Sound wird beim Status-Wechsel auf 'over' gespielt
+      case "sound": Soundboard.playById(m.id); break; // Soundboard-Klick eines Spielers -> alle hören es
     }
   }
 
@@ -282,45 +351,45 @@
     });
   }
 
-  // ------------------------------------------------------ Hintergrund-Szene (Goldene Stunde, animiert, SVG)
+  // ------------------------------------------------------ Hintergrund-Szene (Skelett, vom Tag-Nacht-Zyklus animiert)
   function sceneSVG(variant) {
-    var cloud = function (y, s, op, dur, begin) {
-      // driftet von links (-220) nach rechts (1020) -> Umbruch passiert außerhalb des Bildes
-      return '<g opacity="' + op + '"><ellipse cx="' + (40*s) + '" cy="' + (10*s) + '" rx="' + (52*s) + '" ry="' + (13*s) + '" fill="#FBF6EA"/><ellipse cx="' + (78*s) + '" cy="' + (15*s) + '" rx="' + (38*s) + '" ry="' + (10*s) + '" fill="#FBF6EA"/>'
-        + '<animateTransform attributeName="transform" type="translate" values="-220 ' + y + '; 1020 ' + y + '" dur="' + dur + 's" begin="-' + begin + 's" repeatCount="indefinite"/></g>';
-    };
-    var sun = function (cx, cy) {
-      return '<g><circle cx="' + cx + '" cy="' + cy + '" r="95" fill="#FBD98A" opacity="0.55"><animate attributeName="opacity" values="0.4;0.65;0.4" dur="6s" repeatCount="indefinite"/></circle>'
-        + '<circle cx="' + cx + '" cy="' + cy + '" r="58" fill="#FCE3A0" opacity="0.7"/>'
-        + '<circle cx="' + cx + '" cy="' + cy + '" r="40" fill="#FFF1C6"><animate attributeName="r" values="40;43;40" dur="6s" repeatCount="indefinite"/></circle></g>';
-    };
-    var glints = function (cx) {
-      var g = '<g stroke="#FFF3D2" stroke-linecap="round" opacity="0.6"><animate attributeName="opacity" values="0.35;0.7;0.35" dur="5s" repeatCount="indefinite"/>';
-      for (var i = 0; i < 5; i++) g += '<line x1="' + (cx - 60 + i*4) + '" y1="' + (352 + i*18) + '" x2="' + (cx + 60 - i*4) + '" y2="' + (352 + i*18) + '" stroke-width="' + (4 - i*0.5) + '"/>';
-      return g + '</g>';
-    };
-    var island = '<path d="M0 338 Q110 312 230 330 Q300 340 380 334 L380 348 L0 348 Z" fill="#6E9AA3" opacity="0.55"/>';
     var defs = '<defs>'
-      + '<linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#235C73"/><stop offset="46%" stop-color="#6E9FB0"/><stop offset="80%" stop-color="#EAB877"/><stop offset="100%" stop-color="#F4D49E"/></linearGradient>'
-      + '<linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2C7888"/><stop offset="50%" stop-color="#2F8C8E"/><stop offset="100%" stop-color="#79C8BC"/></linearGradient>'
-      + '<linearGradient id="sa" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#E9D5A6"/><stop offset="100%" stop-color="#D4B988"/></linearGradient>'
-      + '<radialGradient id="vg" cx="50%" cy="42%" r="75%"><stop offset="55%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#0a2e38" stop-opacity="0.4"/></radialGradient></defs>';
+      + '<linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1E78B4"/><stop offset="46%" stop-color="#5AA7D0"/><stop offset="80%" stop-color="#AEDAE8"/><stop offset="100%" stop-color="#E2F4F4"/></linearGradient>'
+      + '<linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1597A4"/><stop offset="50%" stop-color="#22B0AC"/><stop offset="100%" stop-color="#8FE3D4"/></linearGradient>'
+      + '<linearGradient id="sa" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F1E3BE"/><stop offset="100%" stop-color="#DEC79A"/></linearGradient>'
+      + '<radialGradient id="vg" cx="50%" cy="42%" r="75%"><stop offset="55%" stop-color="#0a1020" stop-opacity="0"/><stop offset="100%" stop-color="#0a1020" stop-opacity="0.4"/></radialGradient></defs>';
+    // Sonne als Gruppe am Ursprung; der Zyklus setzt transform (Bogen) + Farben + Sichtbarkeit.
+    var sunG = '<g id="lg-sun" opacity="0.5"><circle cx="0" cy="0" r="95" fill="#FBD98A"/><circle cx="0" cy="0" r="58" fill="#FCE3A0" opacity="0.72"/><circle cx="0" cy="0" r="40" fill="#FFF1C6"/></g>';
+    var moonG = '<g id="lg-moon" opacity="0"><circle cx="180" cy="112" r="46" fill="#CFE0F0" opacity="0.18"/><circle cx="180" cy="112" r="30" fill="#EAF1F8"/><circle cx="170" cy="104" r="24" fill="#D4E0EE" opacity="0.45"/></g>';
+    var starsG = '<g id="lg-stars" opacity="0">' + DAY.stars + '</g>';
+    var island = '<path d="M0 338 Q110 312 230 330 Q300 340 380 334 L380 348 L0 348 Z" fill="#6E9AA3" opacity="0.55"/>';
+    var darkRect = '<rect id="lg-dark" x="0" y="0" width="800" height="600" fill="#0a1226" opacity="0"/>';
+    function glints(cx) {
+      var g = '<g id="lg-glints" opacity="0.5"><g stroke="#FFF3D2" stroke-linecap="round" opacity="0.7"><animate attributeName="opacity" values="0.4;0.8;0.4" dur="5s" repeatCount="indefinite"/>';
+      for (var i = 0; i < 5; i++) g += '<line x1="' + (cx - 60 + i*4) + '" y1="' + (352 + i*18) + '" x2="' + (cx + 60 - i*4) + '" y2="' + (352 + i*18) + '" stroke-width="' + (4 - i*0.5) + '"/>';
+      return g + '</g></g>';
+    }
 
     if (variant === "calm") {
-      // Ruhiger Tisch-Hintergrund: gut lesbar, nur Verlauf + Sonnenflimmern + Wellen.
+      // Ruhiger Tisch-Hintergrund: gut lesbar, Verlauf + Sterne + Sonne + Wellen.
       return '<svg width="100%" height="100%" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + defs
         + '<rect x="0" y="0" width="800" height="312" fill="url(#sk)"/>'
-        + sun(650, 90)
+        + starsG + moonG + sunG
         + island
         + '<rect x="0" y="312" width="800" height="180" fill="url(#se)"/>'
         + glints(650)
-        + '<g stroke="#EAF7F2" stroke-width="1.4" fill="none" opacity="0.3"><animate attributeName="opacity" values="0.18;0.34;0.18" dur="7s" repeatCount="indefinite"/>'
+        + '<g stroke="#EAF7F2" stroke-width="1.4" fill="none" opacity="0.28"><animate attributeName="opacity" values="0.16;0.32;0.16" dur="7s" repeatCount="indefinite"/>'
         + '<path d="M40 380 q22 -8 44 0 t44 0 t44 0 t44 0"/><path d="M360 410 q22 -8 44 0 t44 0 t44 0 t44 0"/></g>'
         + '<path d="M0 470 Q260 446 480 472 Q640 490 800 468 L800 600 L0 600 Z" fill="url(#sa)"/>'
+        + darkRect
         + '<rect x="0" y="0" width="800" height="600" fill="url(#vg)"/></svg>';
     }
 
-    // Volle Szene für Menüs/Lobby/Spielende.
+    // Volle Szene fuer Menues/Lobby/Spielende.
+    var cloud = function (y, s, op, dur, begin) {
+      return '<g opacity="' + op + '"><ellipse cx="' + (40*s) + '" cy="' + (10*s) + '" rx="' + (52*s) + '" ry="' + (13*s) + '" fill="#FBF6EA"/><ellipse cx="' + (78*s) + '" cy="' + (15*s) + '" rx="' + (38*s) + '" ry="' + (10*s) + '" fill="#FBF6EA"/>'
+        + '<animateTransform attributeName="transform" type="translate" values="-220 ' + y + '; 1020 ' + y + '" dur="' + dur + 's" begin="-' + begin + 's" repeatCount="indefinite"/></g>';
+    };
     var houses = '<g>'
       + '<path d="M566 350 Q670 330 800 346 L800 352 L566 352 Z" fill="#caa86f"/>'
       + '<rect x="588" y="306" width="46" height="46" fill="#FBF7EC"/><rect x="588" y="306" width="13" height="46" fill="#ECE2CD"/>'
@@ -336,7 +405,7 @@
       + '<animateTransform attributeName="transform" type="translate" values="-60 392; 880 392" dur="58s" repeatCount="indefinite"/></g>';
     return '<svg width="100%" height="100%" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + defs
       + '<rect x="0" y="0" width="800" height="346" fill="url(#sk)"/>'
-      + sun(612, 150)
+      + starsG + moonG + sunG
       + cloud(60, 1, 0.7, 80, 20) + cloud(98, 0.7, 0.5, 110, 60) + cloud(46, 0.55, 0.45, 95, 38)
       + island
       + '<rect x="0" y="346" width="800" height="150" fill="url(#se)"/>'
@@ -345,6 +414,7 @@
       + boat
       + '<path d="M0 470 Q260 444 480 474 Q650 494 800 466 L800 600 L0 600 Z" fill="url(#sa)"/>'
       + '<g transform="translate(96 540)"><ellipse cx="0" cy="0" rx="18" ry="7" fill="#C3A878"/><ellipse cx="30" cy="-9" rx="11" ry="5" fill="#CDB388"/></g>'
+      + darkRect
       + '<rect x="0" y="0" width="800" height="600" fill="url(#vg)"/></svg>';
   }
 
@@ -355,11 +425,13 @@
     var bg = $("lg-bg");
     if (!bg || bg.getAttribute("data-key") !== variant) {
       if (bg && bg.parentNode) bg.parentNode.removeChild(bg);
-      bg = el("div", { id: "lg-bg", style: "position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#235C73;" });
+      bg = el("div", { id: "lg-bg", style: "position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#0e2233;" });
       bg.setAttribute("data-key", variant);
       bg.innerHTML = sceneSVG(variant);
       root.insertBefore(bg, root.firstChild);
     }
+    DAY.apply();   // sofort korrekt einfaerben (auch nach Bildwechsel)
+    DAY.ensure();  // Tag-Nacht-Schleife laeuft
     var layer = $("lg-content");
     if (!layer) { layer = el("div", { id: "lg-content", style: "position:relative;z-index:1;height:100%;" }); root.appendChild(layer); }
     clear(layer);
@@ -437,7 +509,7 @@
   // ----------------------------------------------------------- Startbildschirm
   function topRightControls() {
     return el("div", { style: "position:absolute;top:14px;right:14px;z-index:5;display:flex;gap:8px;" },
-      themeBtn(), soundBtn());
+      soundBtn());
   }
   function soundBtn() {
     return el("button", {
@@ -446,14 +518,7 @@
       onclick: function () { Sound.setEnabled(!Sound.isEnabled()); Sound.unlock(); if (Sound.isEnabled()) Sound.ping(); render(); }
     }, Sound.isEnabled() ? "🔊" : "🔇");
   }
-  function themeBtn() {
-    var names = Object.keys(THEMES);
-    return el("button", {
-      style: "cursor:pointer;border:1px solid rgba(251,243,226,.25);background:rgba(0,0,0,.2);color:#fbf3e2;border-radius:10px;height:40px;padding:0 12px;font-size:13px;font-weight:700;",
-      title: "Farbwelt wechseln",
-      onclick: function () { var i = names.indexOf(app.theme); app.theme = names[(i + 1) % names.length]; localStorage.setItem("luegen.theme", app.theme); render(); }
-    }, "🎨 " + app.theme);
-  }
+  // Stimmungs-Umschalter entfernt: der Tag-Nacht-Zyklus laeuft automatisch.
 
   function renderHome() {
     var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto;" });
@@ -482,7 +547,7 @@
       big({ t: "Gegen Bots", icon: "🤖" }, "Allein gegen die KI üben", "linear-gradient(180deg,#3f93a8,#2c7689)", function () { app.mode = "bots"; app.offStats = {}; app.screen = "offline-setup"; render(); }),
       big({ t: "Pass & Play", icon: "📱" }, "Ein Gerät reihum weitergeben", "linear-gradient(180deg,#5a8c6e,#447256)", function () { app.mode = "pass"; app.offStats = {}; app.screen = "offline-setup"; render(); })
     ));
-    append(card, el("div", { style: "text-align:center;margin-top:18px;font-size:12px;color:#8aa39e;line-height:1.5;", text: "Lege verdeckt Karten und sage eine Zahl an — ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt." }));
+    append(card, el("div", { style: "text-align:center;margin-top:18px;font-size:12px;color:#8aa39e;line-height:1.5;", text: "Lege verdeckt Karten und sage eine Zahl an, ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt." }));
     append(wrap, card);
     append(wrap, topRightControls());
     return wrap;
@@ -538,7 +603,7 @@
     var body = el("div", {});
     append(body, backLink(function () { app.screen = "home"; render(); }));
     append(body, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:34px;color:#173f4c;margin-bottom:4px;", text: "Online spielen" }));
-    append(body, el("div", { style: "font-size:13px;color:#7e948f;margin-bottom:18px;", text: "Erstelle einen Raum und teile den Code — oder tritt mit einem Code bei." }));
+    append(body, el("div", { style: "font-size:13px;color:#7e948f;margin-bottom:18px;", text: "Erstelle einen Raum und teile den Code, oder tritt mit einem Code bei." }));
 
     // Name
     append(body, sectionLabel("Dein Name"));
@@ -612,7 +677,7 @@
     append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Bot-Stärke" + (meHost ? "" : " (legt der Host fest)"))));
     append(body, el("div", { style: meHost ? "" : "opacity:.7;pointer-events:none;" },
       levelPicker(r.botLevel, function (lv) { netSend({ t: "setBotLevel", level: lv }); })));
-    if (!r.hasBots) append(body, el("div", { style: "font-size:11px;color:#9bb0aa;margin-top:6px;text-align:center;", text: "Gilt für Bots — unten mit „+ Bot“ welche hinzufügen." }));
+    if (!r.hasBots) append(body, el("div", { style: "font-size:11px;color:#9bb0aa;margin-top:6px;text-align:center;", text: "Gilt für Bots. Unten mit „+ Bot“ welche hinzufügen." }));
 
     // Players
     append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Spieler · " + r.players.length + "/6")));
@@ -653,7 +718,7 @@
     var root = el("div", { style: "position:absolute;inset:0;display:flex;flex-direction:column;" });
 
     // Kopfzeile
-    var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "—");
+    var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "·");
     append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:10px;" },
       el("button", { onclick: onMenu, style: "background:rgba(0,0,0,.22);border:1px solid rgba(251,243,226,.2);color:#fbf3e2;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;" }, "‹ Menü"),
       el("div", { style: "font-family:'Fraunces',serif;font-weight:700;font-style:italic;letter-spacing:.16em;font-size:15px;color:rgba(251,243,226,.85);", text: "L Ü G E N" }),
@@ -704,9 +769,15 @@
     } else if (vm.pileCount > 0) {
       append(pileRegion, pileStack(vm.pileCount));
     } else {
-      append(pileRegion, el("div", { style: "width:80px;height:112px;border:2px dashed rgba(251,243,226,.28);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:rgba(251,243,226,.5);padding:8px;", text: "Neuer Stapel" }));
+      append(pileRegion, el("div", { style: "width:80px;height:112px;border:2px dashed rgba(251,243,226,.5);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:rgba(251,243,226,.72);padding:8px;", text: "Neuer Stapel" }));
     }
-    append(center, pileRegion);
+    // Ablagefeld: dunkle Tafel mit Goldrand. Hebt Stapel und Aufdeckung klar vom hellen Strand ab.
+    var tafel = el("div", { style: "position:relative;display:inline-flex;align-items:center;justify-content:center;"
+      + "padding:" + (compact ? "20px 34px 26px" : "26px 46px 30px") + ";border-radius:22px;"
+      + "background:radial-gradient(135% 125% at 50% 0%,#1c5663 0%,#123c46 55%,#0b2c33 100%);"
+      + "box-shadow:0 20px 46px rgba(0,0,0,.5),inset 0 0 0 3px rgba(217,164,65,.92),inset 0 0 24px rgba(0,0,0,.5);" });
+    append(tafel, pileRegion);
+    append(center, tafel);
     if (vm.canChallenge) {
       append(center, el("button", { onclick: onChallenge.bind(null, vm), style: "border:none;cursor:pointer;background:linear-gradient(180deg,#cf6a5c,#a84436);color:#fff;font-weight:800;font-size:17px;letter-spacing:.04em;padding:12px 28px;border-radius:30px;box-shadow:0 10px 24px rgba(168,68,54,.5),inset 0 0 0 1px rgba(255,255,255,.2);animation:lg-glow 1.8s ease-in-out infinite;" }, "„Lüge!“"));
     }
@@ -714,7 +785,7 @@
 
     // Banner
     if (app.banner.on && app.banner.text) {
-      append(root, el("div", { class: "lg-pop", style: "position:absolute;top:84px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(16,54,64,.96);border:1px solid rgba(217,164,65,.5);color:#fbf3e2;padding:12px 20px;border-radius:14px;font-weight:700;font-size:15px;box-shadow:0 16px 40px rgba(0,0,0,.5);text-align:center;max-width:90vw;", text: app.banner.text }));
+      append(root, el("div", { class: "lg-pop", style: "position:absolute;top:28%;left:50%;transform:translateX(-50%);z-index:40;background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.6);color:#fbf3e2;padding:14px 24px;border-radius:16px;font-weight:800;font-size:17px;box-shadow:0 16px 44px rgba(0,0,0,.55);text-align:center;max-width:92vw;", text: app.banner.text }));
     }
 
     // Unten: eigene Hand
@@ -734,8 +805,8 @@
     var youPending = vm.pendingFinish === vm.youIndex && !youOut;
     if (youOut || youPending) {
       var msg = youOut
-        ? ("🏁 Du bist fertig" + (youP.place ? " — Platz " + youP.place : "") + ". Zuschauen bis zum Rundenende…")
-        : "Letzte Karte gelegt — warte auf Bestätigung …";
+        ? ("🏁 Du bist fertig" + (youP.place ? ", Platz " + youP.place : "") + ". Zuschauen bis zum Rundenende…")
+        : "Letzte Karte gelegt, warte auf Bestätigung …";
       return el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px;text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
     }
     var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:8px 10px 14px;" });
@@ -743,8 +814,8 @@
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
     var prompt = "";
     if (vm.yourTurn) {
-      if (vm.variant === "asc") prompt = "Du sagst an: " + RANKLONG[RANKS[vm.currentRank]];
-      else if (vm.roundRank != null) prompt = "Du legst: " + RANKLONG[RANKS[vm.roundRank]];
+      if (vm.variant === "asc") prompt = "Sag " + RANKLONG[RANKS[vm.currentRank]] + " an";
+      else if (vm.roundRank != null) prompt = "Lege " + RANKLONG[RANKS[vm.roundRank]];
       else prompt = "Wähle deine Zahl ↓";
     }
     append(bottom, el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 6px 8px;" },
@@ -1053,7 +1124,7 @@
     var body = el("div", {});
     append(body, backLink(function () { app.screen = "home"; app.mode = null; render(); }));
     append(body, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:32px;color:#173f4c;margin-bottom:2px;", text: isBots ? "Gegen Bots" : "Pass & Play" }));
-    append(body, el("div", { style: "font-size:13px;color:#7e948f;margin-bottom:16px;", text: isBots ? "Du gegen KI-Gegner auf diesem Gerät." : "Reihum auf einem Gerät — Hand wird zwischendurch verdeckt." }));
+    append(body, el("div", { style: "font-size:13px;color:#7e948f;margin-bottom:16px;", text: isBots ? "Du gegen KI-Gegner auf diesem Gerät." : "Reihum auf einem Gerät, Hand wird zwischendurch verdeckt." }));
 
     append(body, sectionLabel("Variante"));
     append(body, el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:10px;" },
@@ -1152,14 +1223,14 @@
     el: null, panel: null, toggleBtn: null, open: false,
     // Meme-Clips (MP3) im Ordner sounds/.
     items: [
-      { label: "🥺 UwU", file: "sounds/uwu.mp3" },
-      { label: "💥 Thud", file: "sounds/thud-sound-effect.mp3" },
-      { label: "📮 Sus", file: "sounds/sus-meme-sound.mp3" },
-      { label: "😱 Holy Moly", file: "sounds/holy_moly.mp3" },
-      { label: "💨 Fah", file: "sounds/fah.mp3" },
-      { label: "😎 Rizz", file: "sounds/Rizz.mp3" },
-      { label: "🚪 Get OUT", file: "sounds/Get_OUT.mp3" },
-      { label: "🌈 Gay", file: "sounds/Gay.mp3" },
+      { id: "uwu", label: "🥺 UwU", file: "sounds/uwu.mp3" },
+      { id: "thud", label: "💥 Thud", file: "sounds/thud-sound-effect.mp3" },
+      { id: "sus", label: "📮 Sus", file: "sounds/sus-meme-sound.mp3" },
+      { id: "holy", label: "😱 Holy Moly", file: "sounds/holy_moly.mp3" },
+      { id: "fah", label: "💨 Fah", file: "sounds/fah.mp3" },
+      { id: "rizz", label: "😎 Rizz", file: "sounds/Rizz.mp3" },
+      { id: "getout", label: "🚪 Get OUT", file: "sounds/Get_OUT.mp3" },
+      { id: "gay", label: "🌈 Gay", file: "sounds/Gay.mp3" },
     ],
     ensure: function () {
       var show = (app.screen === "online-room") || (app.screen === "offline-play");
@@ -1168,6 +1239,7 @@
     },
     build: function () {
       var self = this;
+      Sound.loadClips(this.items);   // MP3s vorladen -> kein Verzögern beim Klick
       this.panel = el("div", { class: "sb-panel", style: "display:none;" });
       this.items.forEach(function (it) {
         append(self.panel, el("button", { class: "sb-btn", title: it.label, onclick: function () { Sound.unlock(); self.play(it); } }, it.label));
@@ -1182,8 +1254,17 @@
       this.toggleBtn.textContent = this.open ? "🎵 zu" : "🎵 Sounds";
     },
     play: function (it) {
-      if (it.file) { try { var a = new Audio(it.file); a.volume = 0.9; a.play(); } catch (e) {} }
-      else if (it.synth) it.synth();
+      this.playFile(it);   // sofort lokal (kein Warten auf Server-Echo)
+      // Online zusätzlich an alle anderen verteilen (Server schickt es nicht als Echo zurück an den Klicker -> kein Doppel).
+      if (app.mode === "online" && app.net && app.net.readyState === 1) netSend({ t: "sound", id: it.id });
+    },
+    playFile: function (it) {
+      if (!it) return;
+      if (Sound.playClip(it.id)) return;   // vorgeladener Puffer -> sofort
+      if (it.file) { try { var a = new Audio(it.file); a.volume = 0.9; a.play().catch(function () {}); } catch (e) {} }
+    },
+    playById: function (id) {
+      for (var i = 0; i < this.items.length; i++) if (this.items[i].id === id) { this.playFile(this.items[i]); return; }
     },
     remove: function () { if (this.el) { this.el.remove(); this.el = null; this.open = false; } },
   };

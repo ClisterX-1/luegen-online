@@ -33,7 +33,8 @@ const rooms = new Map(); // code -> room
 // Timings (per Umgebungsvariable übersteuerbar — v. a. für schnelle Tests; Standard bleibt unverändert).
 const REVEAL_MS = +process.env.LUEGEN_REVEAL_MS || 1900;
 const PICKUP_MS = +process.env.LUEGEN_PICKUP_MS || 2000;
-const BOT_MS = +process.env.LUEGEN_BOT_MS || 1600;
+const BOT_MS = +process.env.LUEGEN_BOT_MS || 3000;      // Grundbedenkzeit der Bots
+const BOT_JITTER = process.env.LUEGEN_BOT_JITTER != null ? +process.env.LUEGEN_BOT_JITTER : 4000; // + Zufall -> ~3–7 s (variabel)
 const DISC_MS = +process.env.LUEGEN_DISC_MS || 3500; // getrennter Spieler wird nach dieser Zeit automatisch gespielt
 const EMPTY_ROOM_TTL = 3 * 60e3;                     // Raum ohne verbundene Menschen nach 3 min löschen
 
@@ -307,7 +308,7 @@ function scheduleAuto(room) {
   // 2) Aktueller Spieler ist Bot oder getrennt -> automatisch ziehen.
   const cur = room.seats[g.turn];
   if (cur && (cur.isBot || !cur.connected)) {
-    const delay = cur.isBot ? BOT_MS : DISC_MS;
+    const delay = cur.isBot ? (BOT_MS + Math.random() * BOT_JITTER) : DISC_MS;
     room.timers.auto = setTimeout(() => {
       room.timers.auto = null;
       const gg = room.game;
@@ -476,6 +477,20 @@ function handleMessage(ws, msg) {
       if (!text) return;
       pushChat(room, { name: room.seats[idx].name, index: idx, color: room.seats[idx].color, text, ts: Date.now() });
       broadcast(room);
+      break;
+    }
+
+    case "sound": {
+      const room = getRoom(meta); if (!room) return;
+      const idx = seatIndex(room, meta);
+      if (idx < 0) return;
+      const id = String(msg.id || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24);
+      if (!id) return;
+      const seat = room.seats[idx];
+      const now = Date.now();
+      if (seat._lastSound && now - seat._lastSound < 350) return; // leichte Spam-Bremse
+      seat._lastSound = now;
+      sendEvent(room, { kind: "sound", id, by: idx });            // alle im Raum hören es
       break;
     }
 

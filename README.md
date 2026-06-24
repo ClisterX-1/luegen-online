@@ -9,15 +9,15 @@ Gebaut aus dem ursprünglichen Claude-Design-Entwurf. Das Spielgefühl, die Opti
 ## Was drin ist
 
 ```
-luegen-online/
+luegen-spiel/            (alle Dateien flach — genau wie im GitHub-Repo)
 ├─ server.js            # Server: liefert das Spiel aus + Echtzeit (WebSocket)
+├─ engine.js            # Spielregeln (laufen identisch im Server und im Browser)
+├─ app.js               # Das Spiel im Browser (Design, Online + Offline, Chat, Sound)
+├─ index.html           # Einstiegsseite
+├─ styles.css           # Stile & Animationen
 ├─ package.json         # Abhängigkeiten + Start-Befehl
-├─ public/
-│  ├─ index.html        # Einstiegsseite
-│  ├─ app.js            # Das Spiel im Browser (Design, Online + Offline, Chat, Sound)
-│  ├─ engine.js         # Spielregeln (laufen identisch im Server und im Browser)
-│  └─ styles.css        # Stile & Animationen
-├─ render.yaml          # Ein-Klick-Konfiguration für Render.com
+├─ render.yaml          # Konfiguration für Render.com
+├─ run-tests.js         # Tests (npm test)
 ├─ Dockerfile           # Für Container-Hoster (Fly.io u. a.) — optional
 └─ README.md            # Diese Anleitung
 ```

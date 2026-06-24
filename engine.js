@@ -26,6 +26,7 @@
   // ----------------------------------------------------------------- Konstanten
   var RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
   var RANKLONG = {"2":"Zweien","3":"Dreien","4":"Vieren","5":"Fünfen","6":"Sechsen","7":"Siebenen","8":"Achten","9":"Neunen","10":"Zehnen","J":"Buben","Q":"Damen","K":"Königen","A":"Assen"};
+  var RANKSINGULAR = {"2":"Zwei","3":"Drei","4":"Vier","5":"Fünf","6":"Sechs","7":"Sieben","8":"Acht","9":"Neun","10":"Zehn","J":"Bube","Q":"Dame","K":"König","A":"Ass"};
   var SUITS = [
     { s:"H", sym:"♥", red:true },
     { s:"D", sym:"♦", red:true },
@@ -46,7 +47,7 @@
   function suitSym(card) { return suitOf(card).sym; }
   function cardInk(card) { return { color: suitOf(card).red ? "#c15a4c" : "#1f4f5e" }; }
   function rankLongIdx(i) { return RANKLONG[RANKS[i]]; }
-  function claimLabel(count, ri) { return count + " × " + RANKLONG[RANKS[ri]]; }
+  function claimLabel(count, ri) { return count + " × " + (count === 1 ? RANKSINGULAR[RANKS[ri]] : RANKLONG[RANKS[ri]]); }
 
   function buildDeck() {
     var d = [];
