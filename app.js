@@ -97,7 +97,7 @@
     ui: { selected: {}, pickRank: null },
     off: null,
     offStats: {},   // Offline-Session-Statistik: name -> { name, color, places:{}, games }
-    offCfg: { variant: "same", numPlayers: 4, names: ["", "", "", "", "", ""] },
+    offCfg: { variant: "same", numPlayers: 4, botLevel: "mittel", names: ["", "", "", "", "", ""] },
     onlineForm: { name: localStorage.getItem("luegen.name") || "", code: "", variant: "same" },
     banner: { text: "", on: false, timer: null },
   };
@@ -281,30 +281,105 @@
     });
   }
 
+  // ------------------------------------------------------ Hintergrund-Szene (Goldene Stunde, animiert, SVG)
+  function sceneSVG(variant) {
+    var cloud = function (y, s, op, dur, begin) {
+      // driftet von links (-220) nach rechts (1020) -> Umbruch passiert außerhalb des Bildes
+      return '<g opacity="' + op + '"><ellipse cx="' + (40*s) + '" cy="' + (10*s) + '" rx="' + (52*s) + '" ry="' + (13*s) + '" fill="#FBF6EA"/><ellipse cx="' + (78*s) + '" cy="' + (15*s) + '" rx="' + (38*s) + '" ry="' + (10*s) + '" fill="#FBF6EA"/>'
+        + '<animateTransform attributeName="transform" type="translate" values="-220 ' + y + '; 1020 ' + y + '" dur="' + dur + 's" begin="-' + begin + 's" repeatCount="indefinite"/></g>';
+    };
+    var sun = function (cx, cy) {
+      return '<g><circle cx="' + cx + '" cy="' + cy + '" r="95" fill="#FBD98A" opacity="0.55"><animate attributeName="opacity" values="0.4;0.65;0.4" dur="6s" repeatCount="indefinite"/></circle>'
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="58" fill="#FCE3A0" opacity="0.7"/>'
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="40" fill="#FFF1C6"><animate attributeName="r" values="40;43;40" dur="6s" repeatCount="indefinite"/></circle></g>';
+    };
+    var glints = function (cx) {
+      var g = '<g stroke="#FFF3D2" stroke-linecap="round" opacity="0.6"><animate attributeName="opacity" values="0.35;0.7;0.35" dur="5s" repeatCount="indefinite"/>';
+      for (var i = 0; i < 5; i++) g += '<line x1="' + (cx - 60 + i*4) + '" y1="' + (352 + i*18) + '" x2="' + (cx + 60 - i*4) + '" y2="' + (352 + i*18) + '" stroke-width="' + (4 - i*0.5) + '"/>';
+      return g + '</g>';
+    };
+    var island = '<path d="M0 338 Q110 312 230 330 Q300 340 380 334 L380 348 L0 348 Z" fill="#6E9AA3" opacity="0.55"/>';
+    var defs = '<defs>'
+      + '<linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#235C73"/><stop offset="46%" stop-color="#6E9FB0"/><stop offset="80%" stop-color="#EAB877"/><stop offset="100%" stop-color="#F4D49E"/></linearGradient>'
+      + '<linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2C7888"/><stop offset="50%" stop-color="#2F8C8E"/><stop offset="100%" stop-color="#79C8BC"/></linearGradient>'
+      + '<linearGradient id="sa" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#E9D5A6"/><stop offset="100%" stop-color="#D4B988"/></linearGradient>'
+      + '<radialGradient id="vg" cx="50%" cy="42%" r="75%"><stop offset="55%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#0a2e38" stop-opacity="0.4"/></radialGradient></defs>';
+
+    if (variant === "calm") {
+      // Ruhiger Tisch-Hintergrund: gut lesbar, nur Verlauf + Sonnenflimmern + Wellen.
+      return '<svg width="100%" height="100%" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + defs
+        + '<rect x="0" y="0" width="800" height="312" fill="url(#sk)"/>'
+        + sun(650, 90)
+        + island
+        + '<rect x="0" y="312" width="800" height="180" fill="url(#se)"/>'
+        + glints(650)
+        + '<g stroke="#EAF7F2" stroke-width="1.4" fill="none" opacity="0.3"><animate attributeName="opacity" values="0.18;0.34;0.18" dur="7s" repeatCount="indefinite"/>'
+        + '<path d="M40 380 q22 -8 44 0 t44 0 t44 0 t44 0"/><path d="M360 410 q22 -8 44 0 t44 0 t44 0 t44 0"/></g>'
+        + '<path d="M0 470 Q260 446 480 472 Q640 490 800 468 L800 600 L0 600 Z" fill="url(#sa)"/>'
+        + '<rect x="0" y="0" width="800" height="600" fill="url(#vg)"/></svg>';
+    }
+
+    // Volle Szene für Menüs/Lobby/Spielende.
+    var houses = '<g>'
+      + '<path d="M566 350 Q670 330 800 346 L800 352 L566 352 Z" fill="#caa86f"/>'
+      + '<rect x="588" y="306" width="46" height="46" fill="#FBF7EC"/><rect x="588" y="306" width="13" height="46" fill="#ECE2CD"/>'
+      + '<rect x="636" y="318" width="40" height="34" fill="#F4ECD9"/>'
+      + '<rect x="680" y="300" width="50" height="52" fill="#FBF7EC"/><rect x="717" y="300" width="13" height="52" fill="#ECE2CD"/>'
+      + '<rect x="732" y="322" width="34" height="30" fill="#EFE6D2"/>'
+      + '<path d="M588 306 q23 -25 46 0 Z" fill="#2C7FB8"/><path d="M680 300 q25 -27 50 0 Z" fill="#1F6B9E"/>'
+      + '<rect x="606" y="328" width="11" height="24" fill="#1F4F5E"/><rect x="700" y="324" width="11" height="28" fill="#1F4F5E"/>'
+      + '<circle cx="762" cy="276" r="22" fill="#FBF7EC"/><rect x="755" y="276" width="14" height="34" fill="#EFE6D2"/>'
+      + '<g stroke="#caa86f" stroke-width="3.4" stroke-linecap="round"><line x1="762" y1="276" x2="748" y2="262"/><line x1="762" y1="276" x2="776" y2="262"/><line x1="762" y1="276" x2="776" y2="290"/><line x1="762" y1="276" x2="748" y2="290"/></g></g>';
+    var boat = '<g><g><path d="M-14 0 L14 0 L8 11 L-8 11 Z" fill="#7a4632"/><line x1="0" y1="-30" x2="0" y2="0" stroke="#3a4f57" stroke-width="2"/><path d="M0 -28 L-22 -3 L0 -3 Z" fill="#FBF7EC"/><path d="M3 -24 L20 -4 L3 -4 Z" fill="#EBD9BE"/>'
+      + '<animateTransform attributeName="transform" type="translate" values="0 0;0 -3;0 0" dur="4s" repeatCount="indefinite"/></g>'
+      + '<animateTransform attributeName="transform" type="translate" values="-60 392; 880 392" dur="58s" repeatCount="indefinite"/></g>';
+    return '<svg width="100%" height="100%" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + defs
+      + '<rect x="0" y="0" width="800" height="346" fill="url(#sk)"/>'
+      + sun(612, 150)
+      + cloud(60, 1, 0.7, 80, 20) + cloud(98, 0.7, 0.5, 110, 60) + cloud(46, 0.55, 0.45, 95, 38)
+      + island
+      + '<rect x="0" y="346" width="800" height="150" fill="url(#se)"/>'
+      + glints(612)
+      + houses
+      + boat
+      + '<path d="M0 470 Q260 444 480 474 Q650 494 800 466 L800 600 L0 600 Z" fill="url(#sa)"/>'
+      + '<g transform="translate(96 540)"><ellipse cx="0" cy="0" rx="18" ry="7" fill="#C3A878"/><ellipse cx="30" cy="-9" rx="11" ry="5" fill="#CDB388"/></g>'
+      + '<rect x="0" y="0" width="800" height="600" fill="url(#vg)"/></svg>';
+  }
+
   // ----------------------------------------------------------- Render-Root
-  function mount(content) {
-    var root = $("app"); clear(root);
-    root.appendChild(el("div", { style: "position:absolute;inset:0;z-index:0;" + bgCss(app.theme) }));
-    var layer = el("div", { style: "position:relative;z-index:1;height:100%;" });
+  function mount(content, variant) {
+    variant = variant || "full";
+    var root = $("app");
+    var bg = $("lg-bg");
+    if (!bg || bg.getAttribute("data-key") !== variant) {
+      if (bg && bg.parentNode) bg.parentNode.removeChild(bg);
+      bg = el("div", { id: "lg-bg", style: "position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#235C73;" });
+      bg.setAttribute("data-key", variant);
+      bg.innerHTML = sceneSVG(variant);
+      root.insertBefore(bg, root.firstChild);
+    }
+    var layer = $("lg-content");
+    if (!layer) { layer = el("div", { id: "lg-content", style: "position:relative;z-index:1;height:100%;" }); root.appendChild(layer); }
+    clear(layer);
     append(layer, content);
-    root.appendChild(layer);
   }
 
   function render() {
-    if (app.screen === "home") return mount(renderHome());
-    if (app.screen === "online-setup") return mount(renderOnlineSetup());
-    if (app.screen === "offline-setup") return mount(renderOfflineSetup());
+    if (app.screen === "home") return mount(renderHome(), "full");
+    if (app.screen === "online-setup") return mount(renderOnlineSetup(), "full");
+    if (app.screen === "offline-setup") return mount(renderOfflineSetup(), "full");
     if (app.screen === "online-room") {
-      if (!app.room) return mount(connecting());
-      if (app.room.status === "lobby") return mount(renderLobby());
+      if (!app.room) return mount(connecting(), "full");
+      if (app.room.status === "lobby") return mount(renderLobby(), "full");
       var vm = buildVM();
-      return mount(vm.status === "over" ? renderGameOver(vm) : renderTable(vm));
+      return mount(vm.status === "over" ? renderGameOver(vm) : renderTable(vm), vm.status === "over" ? "full" : "calm");
     }
     if (app.screen === "offline-play") {
       var vm2 = buildVM();
-      return mount(vm2.status === "over" ? renderGameOver(vm2) : renderTable(vm2));
+      return mount(vm2.status === "over" ? renderGameOver(vm2) : renderTable(vm2), vm2.status === "over" ? "full" : "calm");
     }
-    mount(renderHome());
+    mount(renderHome(), "full");
   }
 
   function connecting() {
@@ -422,6 +497,12 @@
       el("div", { style: "font-weight:800;font-size:15px;", text: title }),
       el("div", { style: "font-size:12px;opacity:.7;margin-top:2px;", text: sub }));
   }
+  function levelPicker(current, onPick) {
+    var opts = [["leicht", "Leicht", "blufft selten"], ["mittel", "Mittel", "ausgewogen"], ["schwer", "Schwer", "zählt mit, bluff­t clever"]];
+    var row = el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" });
+    opts.forEach(function (o) { append(row, pill(current === o[0], o[1], o[2], function () { onPick(o[0]); })); });
+    return row;
+  }
   function textInput(value, placeholder, oninput, maxlen) {
     return el("input", {
       value: value || "", placeholder: placeholder, maxlength: maxlen || 14,
@@ -524,6 +605,13 @@
     append(body, el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:10px;" + (meHost ? "" : "opacity:.7;pointer-events:none;") },
       pill(r.variant === "same", "Gleiche Zahl", "Immer dieselbe Zahl", function () { netSend({ t: "setVariant", variant: "same" }); }),
       pill(r.variant === "asc", "Aufsteigend", "2, 3, 4 … der Reihe nach", function () { netSend({ t: "setVariant", variant: "asc" }); })));
+
+    // Bot-Stärke (nur wenn Bots im Raum sind)
+    if (r.hasBots) {
+      append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Bot-Stärke" + (meHost ? "" : " (legt der Host fest)"))));
+      append(body, el("div", { style: meHost ? "" : "opacity:.7;pointer-events:none;" },
+        levelPicker(r.botLevel, function (lv) { netSend({ t: "setBotLevel", level: lv }); })));
+    }
 
     // Players
     append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Spieler · " + r.players.length + "/6")));
@@ -931,7 +1019,7 @@
           self.timers.auto = null;
           var gg = app.off.game;
           if (!gg || gg.status !== "playing" || gg.phase !== "play" || !gg.players[gg.turn].isBot) return;
-          var dec = E.botDecide(gg);
+          var dec = E.botDecide(gg, app.offCfg.botLevel);
           if (dec.action === "challenge") self.challenge(gg.turn);
           else self.botPlay(gg.turn, dec.cardIds, dec.rank);
         }, BOT_MS);
@@ -970,6 +1058,11 @@
     append(body, el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:10px;" },
       pill(cfg.variant === "same", "Gleiche Zahl", "Immer dieselbe Zahl", function () { cfg.variant = "same"; render(); }),
       pill(cfg.variant === "asc", "Aufsteigend", "2, 3, 4 … der Reihe nach", function () { cfg.variant = "asc"; render(); })));
+
+    if (isBots) {
+      append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Bot-Stärke")));
+      append(body, levelPicker(cfg.botLevel, function (lv) { cfg.botLevel = lv; render(); }));
+    }
 
     append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Spieler")));
     append(body, el("div", { style: "display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid rgba(31,79,94,.14);border-radius:14px;padding:8px 10px;" },

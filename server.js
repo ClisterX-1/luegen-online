@@ -61,6 +61,7 @@ function createRoom(variant) {
     variant: variant === "asc" ? "asc" : "same",
     status: "lobby",          // 'lobby' | 'playing' | 'over'
     hostId: null,
+    botLevel: "mittel",       // 'leicht' | 'mittel' | 'schwer'
     seats: [],                // { id, name, color, isBot, connected, token, ws }
     game: null,
     chat: [],
@@ -126,6 +127,8 @@ function redactFor(room, seatIndex) {
     minPlayers: MIN_PLAYERS,
     maxPlayers: 6,
     canStart: room.status === "lobby" && room.seats.length >= MIN_PLAYERS,
+    botLevel: room.botLevel,
+    hasBots: room.seats.some((s) => s.isBot),
     stats: statsList(room),
   };
 
@@ -311,7 +314,7 @@ function scheduleAuto(room) {
       if (!gg || room.status !== "playing" || gg.phase !== "play" || gg.turn !== g.turn) return;
       const seat = room.seats[gg.turn];
       if (!seat || (!seat.isBot && seat.connected)) return; // Mensch ist zurück
-      const dec = E.botDecide(gg);
+      const dec = E.botDecide(gg, room.botLevel);
       if (dec.action === "challenge") doChallenge(room, gg.turn);
       else doPlay(room, gg.turn, dec.cardIds, dec.rank);
     }, delay);
@@ -402,6 +405,14 @@ function handleMessage(ws, msg) {
       const room = getRoom(meta); if (!room) return;
       if (!isHost(room, meta) || room.status !== "lobby") return;
       room.variant = msg.variant === "asc" ? "asc" : "same";
+      broadcast(room);
+      break;
+    }
+
+    case "setBotLevel": {
+      const room = getRoom(meta); if (!room) return;
+      if (!isHost(room, meta) || room.status !== "lobby") return;
+      room.botLevel = (["leicht", "mittel", "schwer"].indexOf(msg.level) >= 0) ? msg.level : "mittel";
       broadcast(room);
       break;
     }

@@ -157,7 +157,7 @@
     var state = {
       variant: variant, players: players, pile: [], lastPlay: null,
       currentRank: 0, roundRank: null, turn: 0, phase: "play",
-      reveal: null, pickup: null,
+      reveal: null, pickup: null, claimedCounts: {},   // Ansagen pro Zahl im aktuellen Stapel (für Bot-Kartenzählung)
       finishOrder: [], eliminated: [], pendingFinish: null, standings: null,
       winner: null, status: "playing", round: 1,
     };
@@ -210,6 +210,8 @@
     player.hand = player.hand.filter(function (c){ return !idset[c.id]; });
     s.pile = s.pile.concat(played);
     s.lastPlay = { player: playerIdx, cards: played, rank: claimRank, count: played.length };
+    if (!s.claimedCounts) s.claimedCounts = {};
+    s.claimedCounts[claimRank] = (s.claimedCounts[claimRank] || 0) + played.length;
     var events = [{ kind:"play", player: playerIdx, count: played.length, rank: claimRank }];
 
     // Eine vorherige "letzte Karte" eines ANDEREN Spielers wird durch dieses
@@ -274,6 +276,7 @@
     terminalScan(s);                          // Asse / durch cleanFours geleerte Hände
 
     s.pile = []; s.lastPlay = null; s.currentRank = 0; s.roundRank = null; s.reveal = null;
+    s.claimedCounts = {};                     // neuer Stapel -> Zählung zurücksetzen
     s.round = (s.round || 1) + 1;
 
     if (checkEnd(s)) return { state:s, hadPickup:false };
@@ -299,35 +302,93 @@
   }
 
   // --------------------------------------------------------------- Bot-Logik
-  function botDecide(state) {
+  function shuffle(a) { for (var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+  // level: 'leicht' | 'mittel' | 'schwer' (Standard: 'mittel')
+  function botDecide(state, level) {
+    level = level || "mittel";
     var me = state.turn;
     var hand = state.players[me].hand;
     var lp = state.lastPlay;
+    var cc = state.claimedCounts || {};
+
+    // --- Anzweifeln? (mit Kartenzählung) ---
     if (lp && lp.player !== me) {
-      var have = countRank(hand, lp.rank);
-      var impossible = have + lp.count > 4;
-      var pCh = impossible ? 0.97 : Math.min(0.55, 0.07*lp.count + (lp.count>=3 ? 0.18 : 0.02));
-      if (hand.length <= 2) pCh += 0.1;
-      // letzte Karte des Vorgängers? Etwas eher anzweifeln (sonst ist sie sicher).
-      if (state.pendingFinish === lp.player) pCh = Math.max(pCh, impossible ? 0.97 : 0.5);
-      if (Math.random() < pCh) return { action:"challenge" };
+      var claimedR = cc[lp.rank] || 0;                 // wie viele dieser Zahl im aktuellen Stapel angesagt wurden
+      var myHave = countRank(hand, lp.rank);
+      var impossible = (claimedR + myHave) > 4;        // schummelsicher: mehr als 4 kann es nicht geben
+      var oppFinishing = state.pendingFinish === lp.player || state.players[lp.player].hand.length <= 1;
+      var pCh;
+      if (level === "leicht") {
+        pCh = impossible ? 0.6 : Math.min(0.18, 0.03 * lp.count);
+      } else if (level === "schwer") {
+        pCh = impossible ? 0.99 : Math.min(0.45, 0.06 * lp.count);
+        if (claimedR >= 4) pCh = Math.max(pCh, 0.9);
+        else if (claimedR === 3) pCh = Math.max(pCh, 0.4);
+        if (oppFinishing) pCh = Math.max(pCh, impossible ? 0.99 : 0.7);   // Endspiel: Sieg verhindern
+        if (hand.length <= 2) pCh += 0.1;
+      } else { // mittel
+        pCh = impossible ? 0.95 : Math.min(0.5, 0.07 * lp.count + (claimedR >= 3 ? 0.22 : 0));
+        if (oppFinishing) pCh = Math.max(pCh, impossible ? 0.97 : 0.5);
+        if (hand.length <= 2) pCh += 0.08;
+      }
+      if (Math.random() < pCh) return { action: "challenge" };
     }
+
+    // --- Legen ---
+    var freeChoice = (state.variant !== "asc" && state.roundRank == null);
+
+    // Setup-Bluff (schwer): Rundenzahl = eine Zahl, die ich mehrfach halte; jetzt mit Müll
+    // bluffen und die echten Karten später ehrlich nachlegen (die genannte Taktik).
+    if (freeChoice && level === "schwer" && Math.random() < 0.3) {
+      var multi = -1, bestN = 1;
+      for (var ri = 0; ri < 12; ri++) { var cnt = countRank(hand, ri); if (cnt >= 2 && cnt > bestN) { bestN = cnt; multi = ri; } }
+      if (multi >= 0) {
+        var junk = shuffle(hand.filter(function (c){ return c.rank !== RANKS[multi] && c.rank !== "A"; }));
+        if (junk.length) {
+          var nn = Math.min(junk.length, 1 + (Math.random() < 0.4 ? 1 : 0));
+          return { action: "play", cardIds: junk.slice(0, nn).map(function (c){ return c.id; }), rank: multi };
+        }
+      }
+    }
+
     var reqIdx = state.variant === "asc" ? state.currentRank
-      : (state.roundRank != null ? state.roundRank : bestRankIdx(hand));
+      : (state.roundRank != null ? state.roundRank : bestRankIdx(hand));  // Rundenstart: Zahl, von der ich am meisten halte
     var req = RANKS[reqIdx];
-    var honest = hand.filter(function (c){ return c.rank===req; });
+    var honest = hand.filter(function (c){ return c.rank === req; });
     var toPlay;
-    if (honest.length > 0) { var k=1+Math.floor(Math.random()*honest.length); toPlay=honest.slice(0,k); }
-    else {
-      var sorted = hand.slice().sort(function (a,b){ return rankIdx(a.rank)-rankIdx(b.rank); });
-      var k2 = Math.random() < 0.6 ? 1 : 2; toPlay = sorted.slice(0, Math.min(k2, hand.length));
+
+    if (honest.length > 0) {
+      if (level === "leicht") {
+        toPlay = honest.slice(0, 1);                    // immer nur eine -> berechenbar
+      } else if (level === "schwer" && honest.length >= 2 && Math.random() < 0.45) {
+        toPlay = honest.slice(0, 1);                    // spreizen: eine jetzt, Rest später
+      } else {
+        toPlay = honest.slice(0, 1 + Math.floor(Math.random() * honest.length));
+      }
+    } else {
+      var sorted = hand.slice().sort(function (a, b){ return rankIdx(a.rank) - rankIdx(b.rank); });
+      if (level === "leicht") {
+        toPlay = sorted.slice(0, 1);                    // niedrigste -> Tell
+      } else if (level === "schwer") {
+        var room4 = Math.max(1, 4 - (cc[reqIdx] || 0)); // nicht offensichtlich unmöglich bluffen
+        var n = Math.min(room4, hand.length, 1 + (Math.random() < 0.35 ? 1 : 0));
+        var pool = shuffle(hand.filter(function (c){ return c.rank !== "A"; }));
+        if (!pool.length) pool = hand.slice();
+        toPlay = pool.slice(0, n);                      // variierte Bluffkarten (kein „immer niedrigste"-Tell)
+      } else { // mittel
+        toPlay = sorted.slice(0, Math.min(Math.random() < 0.6 ? 1 : 2, hand.length));
+      }
     }
-    return { action:"play", cardIds: toPlay.map(function (c){ return c.id; }), rank: reqIdx };
+    if (!toPlay || !toPlay.length) toPlay = hand.slice(0, 1);
+    return { action: "play", cardIds: toPlay.map(function (c){ return c.id; }), rank: reqIdx };
   }
+
   function canProveImpossible(state, idx) {
     var lp = state.lastPlay;
     if (!lp || lp.player === idx || state.players[idx].out) return false;
-    return countRank(state.players[idx].hand, lp.rank) + lp.count > 4;
+    var cc = state.claimedCounts || {};
+    return (cc[lp.rank] || 0) + countRank(state.players[idx].hand, lp.rank) > 4;
   }
 
   return {
