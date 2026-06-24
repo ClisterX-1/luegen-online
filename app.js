@@ -282,7 +282,7 @@
         break;
       }
       case "gameover": break; // Sound wird beim Status-Wechsel auf 'over' gespielt
-      case "sound": Soundboard.playById(m.id); break; // Soundboard-Klick eines Spielers -> alle hören es
+      case "sound": if (m.by !== youIdx()) Soundboard.playById(m.id); break; // eigenes Echo nicht abspielen (lokal schon gehört) -> kein Doppel
     }
   }
 
@@ -754,6 +754,12 @@
     });
     append(root, oppRow);
 
+    // Banner: mittig direkt unter den Mitspielern, im Layout-Fluss (reserviert Platz, ueberlappt das Kartenfeld nie).
+    if (app.banner.on && app.banner.text) {
+      append(root, el("div", { style: "flex:none;display:flex;justify-content:center;padding:2px 12px 0;" },
+        el("div", { class: "lg-pop", style: "background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.6);color:#fbf3e2;padding:10px 20px;border-radius:14px;font-weight:800;font-size:16px;line-height:1.25;box-shadow:0 12px 30px rgba(0,0,0,.45);text-align:center;max-width:92vw;", text: app.banner.text })));
+    }
+
     // Mitte
     var center = el("div", { style: "flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:" + (compact ? "flex-start" : "center") + ";gap:" + (compact ? "8px" : "14px") + ";padding:" + (compact ? "2px 16px 0" : "6px 16px") + ";position:relative;" });
     if (vm.lastPlay && vm.phase !== "reveal") {
@@ -783,10 +789,6 @@
     }
     append(root, center);
 
-    // Banner
-    if (app.banner.on && app.banner.text) {
-      append(root, el("div", { class: "lg-pop", style: "position:absolute;top:28%;left:50%;transform:translateX(-50%);z-index:40;background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.6);color:#fbf3e2;padding:14px 24px;border-radius:16px;font-weight:800;font-size:17px;box-shadow:0 16px 44px rgba(0,0,0,.55);text-align:center;max-width:92vw;", text: app.banner.text }));
-    }
 
     // Unten: eigene Hand
     append(root, renderBottom(vm, compact));
