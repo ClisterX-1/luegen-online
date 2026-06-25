@@ -86,7 +86,12 @@
 
   // Wendet cleanFours auf alle Spieler an (nach Austeilen / nach Aufnehmen).
   function cleanAllHands(players) {
-    players.forEach(function (p){ p.hand = cleanFours(p.hand); });
+    var dropped = {};
+    players.forEach(function (p){
+      for (var i=0;i<RANKS.length;i++){ var r=RANKS[i]; if (r==="A") continue; if (p.hand.filter(function (x){ return x.rank===r; }).length===4) dropped[r]=true; }
+      p.hand = cleanFours(p.hand);
+    });
+    return dropped;   // Raenge, die komplett (4er-Satz) aus dem Spiel geflogen sind
   }
 
   // ----------------------------------------------------- Rangfolge-Hilfen
@@ -153,12 +158,12 @@
     });
     deck.forEach(function (c, i){ players[i % n].hand.push(c); });
     players.forEach(function (p){ sortHand(p.hand); });
-    cleanAllHands(players);
+    var dead0 = cleanAllHands(players);
 
     var state = {
       variant: variant, players: players, pile: [], lastPlay: null,
       currentRank: 0, roundRank: null, turn: 0, phase: "play",
-      reveal: null, pickup: null, claimedCounts: {},   // Ansagen pro Zahl im aktuellen Stapel (für Bot-Kartenzählung)
+      reveal: null, pickup: null, claimedCounts: {}, deadRanks: dead0,   // Ansagen pro Zahl + komplett aussortierte Raenge
       finishOrder: [], eliminated: [], pendingFinish: null, standings: null,
       winner: null, status: "playing", round: 1,
     };
@@ -273,7 +278,9 @@
       s.pendingFinish = null;                // bei Bluff hat claimer (=loser) den Stapel -> wieder im Spiel
     }
 
-    cleanAllHands(s.players);
+    var deadNew = cleanAllHands(s.players);
+    if (!s.deadRanks) s.deadRanks = {};
+    for (var dk in deadNew) s.deadRanks[dk] = true;
     terminalScan(s);                          // Asse / durch cleanFours geleerte Hände
 
     s.pile = []; s.lastPlay = null; s.currentRank = 0; s.roundRank = null; s.reveal = null;

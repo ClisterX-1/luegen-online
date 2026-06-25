@@ -140,6 +140,7 @@ function redactFor(room, seatIndex) {
     out.currentRank = g.currentRank;
     out.roundRank = g.roundRank;
     out.pileCount = g.pile.length;
+    out.deadRanks = g.deadRanks || {};        // komplett aussortierte Raenge (oeffentlich)
     out.lastPlay = g.lastPlay ? { player: g.lastPlay.player, count: g.lastPlay.count, rank: g.lastPlay.rank } : null;
     out.pendingFinish = g.pendingFinish;
     out.finishOrder = g.finishOrder;

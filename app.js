@@ -292,7 +292,7 @@
       var r = app.room;
       return {
         online: true, status: r.status, variant: r.variant, phase: r.phase,
-        currentRank: r.currentRank, roundRank: r.roundRank, pileCount: r.pileCount,
+        currentRank: r.currentRank, roundRank: r.roundRank, pileCount: r.pileCount, deadRanks: r.deadRanks || {},
         players: r.players, youIndex: r.you.index, hand: r.hand || [],
         lastPlay: r.lastPlay, reveal: r.reveal, pickup: r.pickup,
         pendingFinish: r.pendingFinish, standings: r.standings, stats: r.stats,
@@ -316,7 +316,7 @@
     }
     return {
       online: false, status: g.status, variant: g.variant, phase: g.phase,
-      currentRank: g.currentRank, roundRank: g.roundRank, pileCount: g.pile.length,
+      currentRank: g.currentRank, roundRank: g.roundRank, pileCount: g.pile.length, deadRanks: g.deadRanks || {},
       players: players, youIndex: you, hand: g.players[you] ? g.players[you].hand : [],
       lastPlay: g.lastPlay ? { player: g.lastPlay.player, count: g.lastPlay.count, rank: g.lastPlay.rank } : null,
       reveal: g.reveal, pickup: pickup, pendingFinish: g.pendingFinish, standings: g.standings, stats: offStatsList(),
@@ -714,12 +714,12 @@
 
   // ----------------------------------------------------------- Tisch
   function renderTable(vm) {
-    var compact = window.innerHeight < 620;
+    var compact = window.innerHeight < 780 || window.innerWidth < 500;
     var root = el("div", { style: "position:absolute;inset:0;display:flex;flex-direction:column;" });
 
     // Kopfzeile
     var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "·");
-    append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:10px;" },
+    append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:" + (compact ? "7px 12px" : "12px 16px") + ";gap:10px;" },
       el("button", { onclick: onMenu, style: "background:rgba(0,0,0,.22);border:1px solid rgba(251,243,226,.2);color:#fbf3e2;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;" }, "‹ Menü"),
       el("div", { style: "font-family:'Fraunces',serif;font-weight:700;font-style:italic;letter-spacing:.16em;font-size:15px;color:rgba(251,243,226,.85);", text: "L Ü G E N" }),
       el("div", { style: "display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.22);border:1px solid rgba(217,164,65,.45);border-radius:10px;padding:7px 12px;" },
@@ -761,11 +761,11 @@
     }
 
     // Mitte
-    var center = el("div", { style: "flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:" + (compact ? "flex-start" : "center") + ";gap:" + (compact ? "8px" : "14px") + ";padding:" + (compact ? "2px 16px 0" : "6px 16px") + ";position:relative;" });
+    var center = el("div", { style: "flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:" + (compact ? "flex-start" : "center") + ";gap:" + (compact ? "6px" : "14px") + ";padding:" + (compact ? "2px 12px 0" : "6px 16px") + ";position:relative;" });
     if (vm.lastPlay && vm.phase !== "reveal") {
       append(center, el("div", { style: "text-align:center;" },
         el("div", { style: "font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;", text: (vm.lastPlay.player === vm.youIndex ? "Du sagst" : nameOf(vm, vm.lastPlay.player) + " sagt") }),
-        el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:clamp(22px,5vw,32px);color:#d9a441;line-height:1.05;margin-top:2px;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) })));
+        el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:" + (compact ? "clamp(20px,5.4vw,27px)" : "clamp(22px,5vw,32px)") + ";color:#d9a441;line-height:1.05;margin-top:2px;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) })));
     }
     var pileRegion = el("div", { style: "position:relative;height:" + (compact ? "112px" : "128px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.phase === "reveal" && vm.reveal) {
@@ -779,7 +779,7 @@
     }
     // Ablagefeld: dunkle Tafel mit Goldrand. Hebt Stapel und Aufdeckung klar vom hellen Strand ab.
     var tafel = el("div", { style: "position:relative;display:inline-flex;align-items:center;justify-content:center;"
-      + "padding:" + (compact ? "20px 34px 26px" : "26px 46px 30px") + ";border-radius:22px;"
+      + "padding:" + (compact ? "12px 30px 18px" : "26px 46px 30px") + ";border-radius:22px;"
       + "background:radial-gradient(135% 125% at 50% 0%,#1c5663 0%,#123c46 55%,#0b2c33 100%);"
       + "box-shadow:0 20px 46px rgba(0,0,0,.5),inset 0 0 0 3px rgba(217,164,65,.92),inset 0 0 24px rgba(0,0,0,.5);" });
     append(tafel, pileRegion);
@@ -811,7 +811,7 @@
         : "Letzte Karte gelegt, warte auf Bestätigung …";
       return el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px;text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
     }
-    var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:8px 10px 14px;" });
+    var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px 8px" : "8px 10px 14px") + ";" });
     var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? "Du" : nameOf(vm, vm.youIndex));
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
     var prompt = "";
@@ -820,7 +820,7 @@
       else if (vm.roundRank != null) prompt = "Lege " + RANKLONG[RANKS[vm.roundRank]];
       else prompt = "Wähle deine Zahl ↓";
     }
-    append(bottom, el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 6px 8px;" },
+    append(bottom, el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:" + (compact ? "0 6px 4px" : "0 6px 8px") + ";" },
       el("div", { style: "display:flex;align-items:center;gap:8px;min-width:0;" },
         el("span", { style: "width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;background:" + youColor + ";", text: (youName[0] || "?").toUpperCase() }),
         el("span", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: youName }),
@@ -828,7 +828,7 @@
       el("div", { style: "font-size:13px;font-weight:700;text-align:right;color:#d9a441;", text: prompt })));
 
     // Handreihe
-    var handRow = el("div", { style: "display:flex;justify-content:safe center;overflow-x:auto;overflow-y:visible;padding:" + (compact ? "14px 22px 6px" : "24px 22px 10px") + ";min-height:" + (compact ? "100px" : "118px") + ";" });
+    var handRow = el("div", { style: "display:flex;justify-content:safe center;overflow-x:auto;overflow-y:visible;padding:" + (compact ? "8px 18px 2px" : "24px 22px 10px") + ";min-height:" + (compact ? "84px" : "118px") + ";" });
     var inner = el("div", { style: "display:flex;align-items:flex-end;" });
     vm.hand.forEach(function (c, idx) {
       var selected = !!app.ui.selected[c.id] && vm.yourTurn;
@@ -839,21 +839,26 @@
 
     // Rang-Auswahl
     if (vm.yourTurn && vm.variant === "same" && vm.roundRank == null) {
+      var dr = vm.deadRanks || {};
       var effPick = app.ui.pickRank != null ? app.ui.pickRank : E.bestRankIdx(vm.hand);
+      if (dr[RANKS[effPick]]) effPick = E.bestRankIdx(vm.hand);   // tote Zahl nicht vorwaehlen
       var chips = el("div", { style: "display:flex;gap:5px;overflow-x:auto;padding:2px;" });
       RANKS.forEach(function (r, i) {
         if (r === "A") return;
-        var on = i === effPick;
-        var st = "flex:none;min-width:34px;height:40px;border-radius:8px;border:1px solid;cursor:pointer;font-family:'Fraunces',serif;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0 6px;"
-          + (on ? "background:#d9a441;color:#173f4c;border-color:#d9a441;transform:translateY(-2px);box-shadow:0 4px 10px rgba(217,164,65,.5);" : "background:rgba(255,253,246,.92);color:#173f4c;border-color:rgba(0,0,0,.12);");
-        append(chips, el("button", { style: st, onclick: function () { app.ui.pickRank = i; render(); } }, r));
+        var dead = !!dr[r];
+        var on = i === effPick && !dead;
+        var st = "flex:none;min-width:34px;height:40px;border-radius:8px;border:1px solid;font-family:'Fraunces',serif;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0 6px;"
+          + (dead ? "background:rgba(255,253,246,.16);color:rgba(23,63,76,.42);border-color:rgba(0,0,0,.08);cursor:not-allowed;text-decoration:line-through;"
+             : on ? "cursor:pointer;background:#d9a441;color:#173f4c;border-color:#d9a441;transform:translateY(-2px);box-shadow:0 4px 10px rgba(217,164,65,.5);"
+                  : "cursor:pointer;background:rgba(255,253,246,.92);color:#173f4c;border-color:rgba(0,0,0,.12);");
+        append(chips, el("button", { style: st, disabled: dead || null, title: dead ? ("Alle vier " + RANKLONG[r] + " sind aus dem Spiel") : null, onclick: dead ? null : function () { app.ui.pickRank = i; render(); } }, r));
       });
       append(bottom, el("div", { style: "display:flex;align-items:center;justify-content:center;gap:8px;padding:0 10px 8px;" },
         el("span", { style: "font-size:12px;font-weight:700;color:rgba(251,243,226,.65);white-space:nowrap;flex:none;", text: "Deine Zahl" }), chips));
     }
 
     // Aktion
-    var actions = el("div", { style: "display:flex;align-items:center;justify-content:center;gap:10px;padding:2px 6px 0;min-height:52px;" });
+    var actions = el("div", { style: "display:flex;align-items:center;justify-content:center;gap:10px;padding:2px 6px 0;min-height:" + (compact ? "46px" : "52px") + ";" });
     if (vm.yourTurn) {
       var selCount = Object.keys(app.ui.selected).filter(function (id) { return app.ui.selected[id] && vm.hand.some(function (c) { return c.id === id; }); }).length;
       var word = vm.variant === "same" ? "Legen" : "Spielen";
