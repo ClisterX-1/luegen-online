@@ -754,19 +754,23 @@
     });
     append(root, oppRow);
 
-    // Banner: mittig direkt unter den Mitspielern, im Layout-Fluss (reserviert Platz, ueberlappt das Kartenfeld nie).
+    // Benachrichtigungszone: feste Hoehe, immer vorhanden. Dadurch bleibt das Ablagefeld fest und Banner und Feld beruehren sich nie.
+    var notif = el("div", { style: "flex:none;height:" + (compact ? "46px" : "54px") + ";display:flex;align-items:center;justify-content:center;padding:0 12px;position:relative;z-index:30;" });
     if (app.banner.on && app.banner.text) {
-      append(root, el("div", { style: "flex:none;display:flex;justify-content:center;padding:2px 12px 0;" },
-        el("div", { class: "lg-pop", style: "background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.6);color:#fbf3e2;padding:10px 20px;border-radius:14px;font-weight:800;font-size:16px;line-height:1.25;box-shadow:0 12px 30px rgba(0,0,0,.45);text-align:center;max-width:92vw;", text: app.banner.text })));
+      append(notif, el("div", { class: "lg-pop", style: "max-width:94vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.6);color:#fbf3e2;padding:8px 18px;border-radius:13px;font-weight:800;font-size:" + (compact ? "14px" : "16px") + ";line-height:1.2;box-shadow:0 10px 26px rgba(0,0,0,.45);text-align:center;", text: app.banner.text }));
     }
+    append(root, notif);
 
-    // Mitte
-    var center = el("div", { style: "flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:" + (compact ? "flex-start" : "center") + ";gap:" + (compact ? "6px" : "14px") + ";padding:" + (compact ? "2px 12px 0" : "6px 16px") + ";position:relative;" });
+    // Mitte: feste Slots fuer Ansage (oben) und Luege-Knopf (unten) -> das Ablagefeld sitzt immer an derselben Stelle.
+    var center = el("div", { style: "flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:" + (compact ? "4px" : "10px") + ";padding:" + (compact ? "2px 12px" : "6px 16px") + ";position:relative;" });
+
+    var claimSlot = el("div", { style: "flex:none;height:" + (compact ? "40px" : "56px") + ";display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;" });
     if (vm.lastPlay && vm.phase !== "reveal") {
-      append(center, el("div", { style: "text-align:center;" },
-        el("div", { style: "font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;", text: (vm.lastPlay.player === vm.youIndex ? "Du sagst" : nameOf(vm, vm.lastPlay.player) + " sagt") }),
-        el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:" + (compact ? "clamp(20px,5.4vw,27px)" : "clamp(22px,5vw,32px)") + ";color:#d9a441;line-height:1.05;margin-top:2px;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) })));
+      append(claimSlot, el("div", { style: "font-size:" + (compact ? "11px" : "12px") + ";letter-spacing:.12em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;line-height:1.1;", text: (vm.lastPlay.player === vm.youIndex ? "Du sagst" : nameOf(vm, vm.lastPlay.player) + " sagt") }));
+      append(claimSlot, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:" + (compact ? "clamp(19px,5vw,25px)" : "clamp(22px,5vw,32px)") + ";color:#d9a441;line-height:1.05;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) }));
     }
+    append(center, claimSlot);
+
     var pileRegion = el("div", { style: "position:relative;height:" + (compact ? "112px" : "128px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.phase === "reveal" && vm.reveal) {
       var row = el("div", { style: "display:flex;gap:8px;" });
@@ -784,9 +788,12 @@
       + "box-shadow:0 20px 46px rgba(0,0,0,.5),inset 0 0 0 3px rgba(217,164,65,.92),inset 0 0 24px rgba(0,0,0,.5);" });
     append(tafel, pileRegion);
     append(center, tafel);
+
+    var lugeSlot = el("div", { style: "flex:none;height:" + (compact ? "50px" : "60px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.canChallenge) {
-      append(center, el("button", { onclick: onChallenge.bind(null, vm), style: "border:none;cursor:pointer;background:linear-gradient(180deg,#cf6a5c,#a84436);color:#fff;font-weight:800;font-size:17px;letter-spacing:.04em;padding:12px 28px;border-radius:30px;box-shadow:0 10px 24px rgba(168,68,54,.5),inset 0 0 0 1px rgba(255,255,255,.2);animation:lg-glow 1.8s ease-in-out infinite;" }, "„Lüge!“"));
+      append(lugeSlot, el("button", { onclick: onChallenge.bind(null, vm), style: "border:none;cursor:pointer;background:linear-gradient(180deg,#cf6a5c,#a84436);color:#fff;font-weight:800;font-size:17px;letter-spacing:.04em;padding:12px 28px;border-radius:30px;box-shadow:0 10px 24px rgba(168,68,54,.5),inset 0 0 0 1px rgba(255,255,255,.2);animation:lg-glow 1.8s ease-in-out infinite;" }, "„Lüge!“"));
     }
+    append(center, lugeSlot);
     append(root, center);
 
 
@@ -824,7 +831,7 @@
       el("div", { style: "display:flex;align-items:center;gap:8px;min-width:0;" },
         el("span", { style: "width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;background:" + youColor + ";", text: (youName[0] || "?").toUpperCase() }),
         el("span", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: youName }),
-        el("span", { style: "font-size:12px;color:rgba(251,243,226,.55);font-weight:600;white-space:nowrap;", text: "· " + vm.hand.length + " Karten" })),
+        el("span", { style: "font-size:12px;color:rgba(251,243,226,.55);font-weight:600;white-space:nowrap;", text: "· " + vm.hand.length + (vm.hand.length === 1 ? " Karte" : " Karten") })),
       el("div", { style: "font-size:13px;font-weight:700;text-align:right;color:#d9a441;", text: prompt })));
 
     // Handreihe
@@ -901,7 +908,7 @@
       for (var i = 0; i < n; i++) append(inner, el("div", { class: "lg-pop", style: "width:38px;height:52px;border-radius:6px;background:repeating-linear-gradient(45deg,#2e7d8f 0 7px,#246575 7px 14px);box-shadow:0 3px 8px rgba(0,0,0,.35),inset 0 0 0 2px rgba(217,164,65,.4);" }));
     }
     return el("div", { style: "position:absolute;inset:0;z-index:55;background:rgba(16,54,64,.9);backdrop-filter:blur(5px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:26px;" },
-      el("div", { style: "font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:rgba(251,243,226,.7);font-weight:700;", text: title + " · " + pu.count + " Karten" }),
+      el("div", { style: "font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:rgba(251,243,226,.7);font-weight:700;", text: title + " · " + pu.count + (pu.count === 1 ? " Karte" : " Karten") }),
       inner);
   }
 
@@ -923,7 +930,7 @@
     var board = el("div", { style: "display:flex;flex-direction:column;gap:7px;" });
     st.forEach(function (s) {
       var p = vm.players[s.player]; var mine = (youRes>=0 && s.player===youRes);
-      var sub = s.reason==="finished" ? "alle Karten abgelegt" : s.reason==="aces" ? "alle vier Asse" : ("noch " + (p.count||0) + " Karten");
+      var sub = s.reason==="finished" ? "alle Karten abgelegt" : s.reason==="aces" ? "alle vier Asse" : ("noch " + (p.count||0) + ((p.count||0) === 1 ? " Karte" : " Karten"));
       append(board, el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:" + (mine?"rgba(217,164,65,.18)":"rgba(0,0,0,.22)") + ";border:1px solid " + (mine?"rgba(217,164,65,.55)":"rgba(251,243,226,.12)") + ";" },
         el("div", { style: "width:32px;text-align:center;font-family:'Fraunces',serif;font-weight:800;font-size:18px;color:#fbf3e2;", text: medal(s.place) }),
         el("span", { style: "width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:" + p.color + ";", text: (p.name[0]||"?").toUpperCase() }),

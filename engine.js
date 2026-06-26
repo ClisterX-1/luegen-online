@@ -319,6 +319,13 @@
     var hand = state.players[me].hand;
     var lp = state.lastPlay;
     var cc = state.claimedCounts || {};
+    var dead = state.deadRanks || {};                 // komplett aussortierte Raenge -> der Bot sagt sie nie an
+    function liveRank(h) {                             // beste noch im Spiel befindliche Zahl (sonst irgendeine lebende, nicht-Ass)
+      var best=-1, bi=-1, i;
+      for (i=0;i<RANKS.length;i++){ if (RANKS[i]==="A" || dead[RANKS[i]]) continue; var c=countRank(h,i); if (c>best){ best=c; bi=i; } }
+      if (bi<0) for (i=0;i<RANKS.length;i++){ if (RANKS[i]!=="A" && !dead[RANKS[i]]){ bi=i; break; } }
+      return bi<0 ? 0 : bi;
+    }
 
     // --- Anzweifeln? (mit Kartenzählung) ---
     if (lp && lp.player !== me) {
@@ -350,7 +357,7 @@
     // bluffen und die echten Karten später ehrlich nachlegen (die genannte Taktik).
     if (freeChoice && level === "schwer" && Math.random() < 0.3) {
       var multi = -1, bestN = 1;
-      for (var ri = 0; ri < 12; ri++) { var cnt = countRank(hand, ri); if (cnt >= 2 && cnt > bestN) { bestN = cnt; multi = ri; } }
+      for (var ri = 0; ri < 12; ri++) { if (dead[RANKS[ri]]) continue; var cnt = countRank(hand, ri); if (cnt >= 2 && cnt > bestN) { bestN = cnt; multi = ri; } }
       if (multi >= 0) {
         var junk = shuffle(hand.filter(function (c){ return c.rank !== RANKS[multi] && c.rank !== "A"; }));
         if (junk.length) {
@@ -361,7 +368,7 @@
     }
 
     var reqIdx = state.variant === "asc" ? state.currentRank
-      : (state.roundRank != null ? state.roundRank : bestRankIdx(hand));  // Rundenstart: Zahl, von der ich am meisten halte
+      : (state.roundRank != null ? state.roundRank : liveRank(hand));  // Rundenstart: beste noch lebende Zahl
     var req = RANKS[reqIdx];
     var honest = hand.filter(function (c){ return c.rank === req; });
     var toPlay;
