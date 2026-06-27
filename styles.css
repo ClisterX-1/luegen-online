@@ -1,12 +1,15 @@
 /* Lügen — globale Stile & Animationen (Design aus dem Original-Entwurf). */
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; }
+html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
   font-family: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   background: #1f6b78;
   color: #fbf3e2;
   -webkit-tap-highlight-color: transparent;
+  position: fixed;
+  inset: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 #app { position: relative; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; }
 
@@ -22,6 +25,8 @@ input { font-family: inherit; }
 @keyframes lg-spin { to { transform: rotate(360deg); } }
 @keyframes lg-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lg-dealin { from { transform: translateY(-18px) scale(.9); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes lg-confetti { 0% { transform: translateY(-24px) rotate(0deg); } 100% { transform: translateY(106vh) rotate(680deg); } }
+@keyframes lg-flip { 0% { transform: rotateY(-90deg) scale(.9); opacity: 0; } 55% { opacity: 1; } 100% { transform: rotateY(0deg) scale(1); opacity: 1; } }
 
 .lg-pop  { animation: lg-pop .32s cubic-bezier(.2,1.2,.3,1) both; }
 .lg-rise { animation: lg-rise .3s ease both; }

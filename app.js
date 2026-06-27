@@ -89,9 +89,10 @@
       if (k === "style") node.setAttribute("style", v);
       else if (k === "class") node.className = v;
       else if (k === "html") node.innerHTML = v;
-      else if (k === "text") node.textContent = v;
+      else if (k === "text") node.textContent = tr(v);
       else if (k === "value") node.value = v;
       else if (k === "disabled" || k === "checked") node[k] = !!v;
+      else if (k === "placeholder" || k === "title" || k === "aria-label") node.setAttribute(k, tr(v));
       else if (k.slice(0, 2) === "on" && typeof v === "function") node.addEventListener(k.slice(2), v);
       else node.setAttribute(k, v);
     }
@@ -101,7 +102,7 @@
   function append(node, c) {
     if (c == null || c === false) return;
     if (Array.isArray(c)) { c.forEach(function (x) { append(node, x); }); return; }
-    if (typeof c === "string" || typeof c === "number") node.appendChild(document.createTextNode(String(c)));
+    if (typeof c === "string" || typeof c === "number") node.appendChild(document.createTextNode(tr(String(c))));
     else node.appendChild(c);
   }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
@@ -169,6 +170,124 @@
     offCfg: { variant: "same", numPlayers: 4, botLevel: "mittel", names: ["", "", "", "", "", ""] },
     onlineForm: { name: localStorage.getItem("luegen.name") || "", code: "", variant: "same" },
     banner: { text: "", on: false, timer: null },
+    settings: {
+      haptics: localStorage.getItem("luegen.haptics") !== "0",                                   // Vibration standardmaessig an
+      lang: localStorage.getItem("luegen.lang") || (((navigator.language || "de").slice(0, 2) === "en") ? "en" : "de")
+    },
+    fx: { wasYourTurn: false, celebrated: false },
+  };
+
+  // ----------------------------------------------------------- Sprache (pro Geraet: de / en)
+  // Statische Texte werden automatisch uebersetzt (Hook in el/append/Attribute). Dynamische ueber L(de,en).
+  var STR = {
+    "Das Kartenspiel": "The card game", "Bluffen · ansagen · entlarven": "Bluff · call · expose",
+    "Online spielen": "Play online", "Mit Freunden über das Internet": "With friends over the internet",
+    "Gegen Bots": "Against bots", "Allein gegen die KI üben": "Practice solo vs the AI",
+    "Ein Gerät reihum weitergeben": "Pass one device around",
+    "Lege verdeckt Karten und sage eine Zahl an, ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt.": "Play cards face down and call a number, honest or bluffed. Whoever calls „Lie!“ and is wrong takes the pile. First to get rid of all cards wins.",
+    "Einstellungen": "Settings", "Ton": "Sound", "Soundeffekte im Spiel": "Sound effects in the game",
+    "Vibration": "Vibration", "Haptisches Feedback (nur Handy)": "Haptic feedback (mobile only)",
+    "Sprache": "Language", "Deutsch": "German", "English": "English",
+    "Erstelle einen Raum und teile den Code, oder tritt mit einem Code bei.": "Create a room and share the code, or join with a code.",
+    "Dein Name": "Your name", "Variante": "Variant", "Gleiche Zahl": "Same number",
+    "Immer dieselbe Zahl": "Always the same number", "Aufsteigend": "Ascending",
+    "2, 3, 4 … der Reihe nach": "2, 3, 4 … in order", "Raum erstellen": "Create room", "ODER": "OR",
+    "Raum-Code": "Room code", "Raum beitreten": "Join room",
+    "Einladung": "Invitation", "Du bist eingeladen!": "You're invited!", "Tritt diesem Raum bei:": "Join this room:",
+    "Beitreten": "Join", "Lieber selbst einen Raum erstellen": "Rather create your own room",
+    "Lobby": "Lobby", "Bot-Stärke": "Bot strength", "Bot-Stärke (legt der Host fest)": "Bot strength (set by host)",
+    "Gilt für Bots. Unten mit „+ Bot“ welche hinzufügen.": "Applies to bots. Add some below with „+ Bot“.",
+    "Warte auf den Host…": "Waiting for the host…", "Code kopieren": "Copy code", "Link kopieren": "Copy link",
+    "Code kopiert!": "Code copied!", "Einladungslink kopiert!": "Invite link copied!",
+    "Host": "Host", "Bot": "Bot",
+    "‹ Menü": "‹ Menu", "‹ Verlassen": "‹ Leave", "Verlassen": "Leave", "Zum Menü": "To menu",
+    "Neuer Stapel": "New pile", "Du sagst": "You say", "„Lüge!“": "„Lie!“",
+    "denkt nach…": "thinking…", "am Zug": "to play", "hat angesagt": "has called", "offline": "offline",
+    "fertig": "done", "fertig?": "done?",
+    "Wähle deine Zahl ↓": "Choose your number ↓", "Deine Zahl": "Your number", "Karten wählen": "Choose cards",
+    "Letzte Karte gelegt, warte auf Bestätigung …": "Last card played, waiting for confirmation …",
+    "Gerät weitergeben an": "Pass the device to", "Hand aufdecken": "Reveal hand",
+    "Runde vorbei": "Round over", "🏆 Gewonnen!": "🏆 You won!", "Endstand": "Final standings",
+    "alle Karten abgelegt": "all cards played", "alle vier Asse": "all four aces",
+    "Statistik dieser Session": "Stats this session", "Spieler": "Players", "Nochmal spielen": "Play again",
+    "Verbinde…": "Connecting…", "Chat": "Chat", "Senden": "Send", "💬 Chat": "💬 Chat",
+    "🎵 Sounds": "🎵 Sounds", "🎵 zu": "🎵 close",
+    "Ton an/aus": "Sound on/off", "Nachricht…": "Message…", "z. B. ABCD": "e.g. ABCD",
+    "Bitte gib einen Namen ein.": "Please enter a name.", "Bitte gib einen 4-stelligen Code ein.": "Please enter a 4-letter code.",
+    "Verbindung fehlgeschlagen.": "Connection failed.", "Ungueltiger Einladungslink.": "Invalid invite link.",
+    "Fehler.": "Error.", "Entfernt.": "Removed.", "Neue Partie gestartet.": "New game started.",
+    "Spiel ist vorbei.": "Game is over.", "Gerade nicht am Zug.": "Not your turn right now.",
+    "Du bist nicht am Zug.": "It's not your turn.", "Du bist nicht mehr im Spiel.": "You're out of the game.",
+    "Wähle mindestens eine Karte.": "Choose at least one card.", "Höchstens vier Karten.": "At most four cards.",
+    "Doppelte Karte.": "Duplicate card.", "Karte nicht in der Hand.": "Card not in your hand.",
+    "Gerade kein offener Spielzug.": "No open play right now.", "Noch nichts angesagt.": "Nothing called yet.",
+    "Eigene Ansage kann man nicht anzweifeln.": "You can't challenge your own call.",
+    "Du": "You",
+    "Leicht": "Easy", "Mittel": "Medium", "Schwer": "Hard", "blufft selten": "rarely bluffs", "ausgewogen": "balanced",
+    "Spielernamen": "Player names", "3 – 6 Spieler": "3 – 6 players", "Spiel starten": "Start game", "+ Bot": "+ Bot",
+    "Du gegen KI-Gegner auf diesem Gerät.": "You against AI opponents on this device.",
+    "Reihum auf einem Gerät, Hand wird zwischendurch verdeckt.": "Take turns on one device, the hand is hidden in between."
+  };
+  function tr(s) { return (app.settings.lang === "en" && typeof s === "string" && STR[s] != null) ? STR[s] : s; }
+  function L(de, en) { return app.settings.lang === "en" ? en : de; }
+  var RANK_DE_ONE = { "2": "Zwei", "3": "Drei", "4": "Vier", "5": "Fünf", "6": "Sechs", "7": "Sieben", "8": "Acht", "9": "Neun", "10": "Zehn", "J": "Bube", "Q": "Dame", "K": "König", "A": "Ass" };
+  var RANK_EN_ONE = { "2": "Two", "3": "Three", "4": "Four", "5": "Five", "6": "Six", "7": "Seven", "8": "Eight", "9": "Nine", "10": "Ten", "J": "Jack", "Q": "Queen", "K": "King", "A": "Ace" };
+  var RANK_EN_MANY = { "2": "Twos", "3": "Threes", "4": "Fours", "5": "Fives", "6": "Sixes", "7": "Sevens", "8": "Eights", "9": "Nines", "10": "Tens", "J": "Jacks", "Q": "Queens", "K": "Kings", "A": "Aces" };
+  function rankMany(ri) { var r = RANKS[ri]; return app.settings.lang === "en" ? RANK_EN_MANY[r] : E.RANKLONG[r]; }
+  function rankOne(ri) { var r = RANKS[ri]; return app.settings.lang === "en" ? RANK_EN_ONE[r] : RANK_DE_ONE[r]; }
+  function claimLabelI(count, ri) { return count + " × " + (count === 1 ? rankOne(ri) : rankMany(ri)); }
+  function kartenLabel(n) { return n + " " + L(n === 1 ? "Karte" : "Karten", n === 1 ? "card" : "cards"); }
+
+  // ----------------------------------------------------------- Haptik (Vibration, abschaltbar)
+  var Haptic = {
+    ok: function () { return app.settings.haptics && typeof navigator !== "undefined" && navigator.vibrate; },
+    buzz: function (p) { if (this.ok()) { try { navigator.vibrate(p); } catch (e) {} } }
+  };
+  // Kurze Konfetti-Feier; reines DOM/CSS, raeumt sich selbst auf.
+  function celebrate(big) {
+    var layer = el("div", { style: "position:fixed;inset:0;z-index:80;pointer-events:none;overflow:hidden;" });
+    var cols = ["#d9a441", "#cf6a5c", "#3f93a8", "#5a8c6e", "#f0c14b", "#fbf3e2"];
+    var n = big ? 90 : 44;
+    for (var i = 0; i < n; i++) {
+      var x = (Math.random() * 100).toFixed(2), sz = (6 + Math.random() * 8);
+      var dur = (2.2 + Math.random() * 1.8).toFixed(2), delay = (Math.random() * 0.6).toFixed(2);
+      var rot = Math.floor(Math.random() * 360), col = cols[i % cols.length];
+      append(layer, el("div", { style: "position:absolute;top:-24px;left:" + x + "%;width:" + sz.toFixed(1) + "px;height:" + (sz * 1.6).toFixed(1) + "px;background:" + col + ";border-radius:2px;transform:rotate(" + rot + "deg);animation:lg-confetti " + dur + "s linear " + delay + "s forwards;" }));
+    }
+    document.body.appendChild(layer);
+    setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, big ? 4400 : 3400);
+  }
+
+  // ----------------------------------------------------------- Karten-Flug (Legen)
+  var FX = {
+    reduce: function () { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; },
+    flyPlay: function (seat, count, isSelf) {
+      try {
+        if (this.reduce()) return;
+        var tafel = document.getElementById("lg-tafel"); if (!tafel) return;
+        var srcEl = isSelf ? document.getElementById("lg-self") : document.querySelector('#lg-content [data-seat="' + seat + '"]');
+        if (!srcEl) srcEl = document.getElementById("lg-self") || document.querySelector('#lg-content [data-seat="' + seat + '"]');
+        if (!srcEl) return;
+        var s = srcEl.getBoundingClientRect(), d = tafel.getBoundingClientRect();
+        var fx = s.left + s.width / 2, fy = s.top + s.height / 2, tx = d.left + d.width / 2, ty = d.top + d.height / 2;
+        var n = Math.min(count || 1, 4), topY = Math.min(fy, ty) - 56;
+        var layer = document.getElementById("lg-fx");
+        if (!layer) { layer = el("div", { id: "lg-fx", style: "position:fixed;inset:0;z-index:45;pointer-events:none;overflow:hidden;" }); document.body.appendChild(layer); }
+        for (var i = 0; i < n; i++) {
+          (function (k) {
+            var jx = (k - (n - 1) / 2) * 8, jr = (k - (n - 1) / 2) * 7;
+            var card = el("div", { style: "position:fixed;left:-23px;top:-32px;width:46px;height:64px;border-radius:8px;background:repeating-linear-gradient(45deg,#2e7d8f 0 8px,#246575 8px 16px);box-shadow:0 8px 18px rgba(0,0,0,.45),inset 0 0 0 3px rgba(217,164,65,.55),inset 0 0 0 5px #246575;will-change:transform,opacity;" });
+            layer.appendChild(card);
+            card.animate([
+              { transform: "translate(" + fx + "px," + fy + "px) scale(.7) rotate(" + (jr * 1.5) + "deg)", opacity: 0.25 },
+              { transform: "translate(" + ((fx + tx) / 2 + jx) + "px," + topY + "px) scale(1.05) rotate(" + jr + "deg)", opacity: 1, offset: 0.55 },
+              { transform: "translate(" + (tx + jx) + "px," + ty + "px) scale(.95) rotate(" + (jr / 2) + "deg)", opacity: 1 }
+            ], { duration: 480, delay: k * 70, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" })
+              .finished.then(function () { if (card.parentNode) card.parentNode.removeChild(card); }).catch(function () {});
+          })(i);
+        }
+      } catch (e) {}
+    }
   };
 
   // ----------------------------------------------------------- Toast
@@ -267,17 +386,17 @@
 
   function handleEvent(m) {
     switch (m.kind) {
-      case "play": Sound.play(); break;
+      case "play": Sound.play(); FX.flyPlay(m.player, m.count, m.player === youIdx()); break;
       case "challenge": {
         Sound.challenge();
-        setBanner(m.by === youIdx() ? "Du zweifelst an!" : pname(m.by) + " zweifelt an!");
+        setBanner(m.by === youIdx() ? L("Du zweifelst an!", "You call a lie!") : pname(m.by) + L(" zweifelt an!", " calls a lie!"));
         break;
       }
       case "reveal_done": {
         Sound.reveal(m.honest);
-        var take = m.loser === youIdx() ? "Du nimmst den Stapel." : pname(m.loser) + " nimmt den Stapel.";
-        var text = m.honest ? ("Die Wahrheit! " + take)
-          : ((m.claimer === youIdx() ? "Du hast geblufft! " : pname(m.claimer) + " hat geblufft! ") + take);
+        var take = m.loser === youIdx() ? L("Du nimmst den Stapel.", "You take the pile.") : pname(m.loser) + L(" nimmt den Stapel.", " takes the pile.");
+        var text = m.honest ? (L("Die Wahrheit! ", "The truth! ") + take)
+          : ((m.claimer === youIdx() ? L("Du hast geblufft! ", "You bluffed! ") : pname(m.claimer) + L(" hat geblufft! ", " bluffed! ")) + take);
         setBanner(text);
         break;
       }
@@ -434,14 +553,21 @@
     DAY.ensure();  // Tag-Nacht-Schleife laeuft
     var layer = $("lg-content");
     if (!layer) { layer = el("div", { id: "lg-content", style: "position:relative;z-index:1;height:100%;" }); root.appendChild(layer); }
+    var scrollSnap = {};                                   // horizontale Scrollposition (Hand + Zahl-Auswahl) ueber das Re-Render retten
+    var keep = layer.querySelectorAll("[data-keepscroll]");
+    for (var ks = 0; ks < keep.length; ks++) scrollSnap[keep[ks].getAttribute("data-keepscroll")] = keep[ks].scrollLeft;
     clear(layer);
     append(layer, content);
+    for (var kk in scrollSnap) { var nw = layer.querySelector('[data-keepscroll="' + kk + '"]'); if (nw) nw.scrollLeft = scrollSnap[kk]; }
     Soundboard.ensure();
+    Chat.ensure();   // Chat/Sounds-Sichtbarkeit bei jedem Render neu bewerten (auch beim Wechsel auf Endstand)
   }
 
   function render() {
     if (app.screen === "home") return mount(renderHome(), "full");
+    if (app.screen === "settings") return mount(renderSettings(), "full");
     if (app.screen === "online-setup") return mount(renderOnlineSetup(), "full");
+    if (app.screen === "invite") return mount(renderInvite(), "full");
     if (app.screen === "offline-setup") return mount(renderOfflineSetup(), "full");
     if (app.screen === "online-room") {
       if (!app.room) return mount(connecting(), "full");
@@ -478,12 +604,13 @@
       el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:15px;line-height:1;position:absolute;bottom:5px;right:6px;transform:rotate(180deg);", text: card.rank })
     );
   }
-  function revealCard(card, matchRank) {
+  function revealCard(card, matchRank, idx) {
     var ink = E.cardInk(card).color;
     var ok = card.rank === RANKS[matchRank];
     var st = "position:relative;width:64px;height:90px;border-radius:8px;background:linear-gradient(160deg,#fffdf6,#f4ead2);display:flex;flex-direction:column;justify-content:space-between;padding:6px;color:" + ink + ";"
-      + "box-shadow:0 8px 20px rgba(0,0,0,.4),0 0 0 2px " + (ok ? "#5a8c6e" : "#c15a4c") + ";";
-    return el("div", { style: st, class: "lg-pop" },
+      + "box-shadow:0 8px 20px rgba(0,0,0,.4),0 0 0 2px " + (ok ? "#5a8c6e" : "#c15a4c") + ";"
+      + "transform-origin:center;animation:lg-flip .5s cubic-bezier(.2,.8,.2,1) both;animation-delay:" + ((idx || 0) * 0.12).toFixed(2) + "s;";
+    return el("div", { style: st },
       el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:17px;line-height:1;", text: card.rank }),
       el("span", { style: "text-align:center;font-size:26px;line-height:1;", text: E.suitSym(card) }),
       el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:17px;line-height:1;text-align:right;", text: card.rank })
@@ -502,14 +629,21 @@
       el("div", { style: back + "transform:rotate(-7deg) translate(-6px,2px);" }),
       el("div", { style: back + "transform:rotate(5deg) translate(5px,-1px);" }),
       el("div", { style: back + "transform:rotate(-1deg);" }),
-      el("div", { style: "position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);background:#15464f;color:#fbf3e2;border:1px solid rgba(217,164,65,.5);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:800;white-space:nowrap;", text: "Stapel · " + count })
+      el("div", { style: "position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);background:#15464f;color:#fbf3e2;border:1px solid rgba(217,164,65,.5);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:800;white-space:nowrap;", text: L("Stapel · ", "Pile · ") + count })
     );
   }
 
   // ----------------------------------------------------------- Startbildschirm
   function topRightControls() {
     return el("div", { style: "position:absolute;top:14px;right:14px;z-index:5;display:flex;gap:8px;" },
-      soundBtn());
+      settingsBtn(), soundBtn());
+  }
+  function settingsBtn() {
+    return el("button", {
+      style: "cursor:pointer;border:1px solid rgba(251,243,226,.25);background:rgba(0,0,0,.2);color:#fbf3e2;border-radius:10px;width:40px;height:40px;font-size:18px;",
+      title: "Einstellungen",
+      onclick: function () { app.screen = "settings"; render(); }
+    }, "⚙️");
   }
   function soundBtn() {
     return el("button", {
@@ -550,6 +684,40 @@
     append(card, el("div", { style: "text-align:center;margin-top:18px;font-size:12px;color:#8aa39e;line-height:1.5;", text: "Lege verdeckt Karten und sage eine Zahl an, ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt." }));
     append(wrap, card);
     append(wrap, topRightControls());
+    return wrap;
+  }
+
+  // ----------------------------------------------------------- Einstellungen
+  function toggleRow(icon, title, sub, on, onClick) {
+    return el("button", { onclick: onClick, style: "width:100%;margin-top:10px;cursor:pointer;border:1px solid rgba(31,79,94,.14);background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;text-align:left;" },
+      el("span", { style: "font-size:20px;flex:none;width:40px;height:40px;border-radius:11px;background:rgba(31,79,94,.06);display:flex;align-items:center;justify-content:center;", text: icon }),
+      el("div", { style: "flex:1;min-width:0;" },
+        el("div", { style: "font-weight:800;font-size:16px;color:#173f4c;", text: title }),
+        el("div", { style: "font-size:12px;color:#86a09b;", text: sub })),
+      el("span", { style: "flex:none;width:46px;height:28px;border-radius:16px;background:" + (on ? "#5a8c6e" : "rgba(31,79,94,.2)") + ";position:relative;transition:background .15s;" },
+        el("span", { style: "position:absolute;top:3px;left:" + (on ? "21px" : "3px") + ";width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:left .15s;" })));
+  }
+  function renderSettings() {
+    var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto;" });
+    var card = el("div", { class: "lg-rise", style: "width:100%;max-width:440px;background:linear-gradient(180deg,#fdf6e9,#f6e8cf);border-radius:22px;padding:28px 26px;box-shadow:0 30px 80px rgba(0,0,0,.4),0 0 0 1px rgba(217,164,65,.4),inset 0 0 0 4px rgba(255,255,255,.5);color:#173f4c;" });
+    append(card, backLink(function () { app.screen = "home"; render(); }));
+    append(card, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:30px;color:#173f4c;margin-bottom:8px;", text: "Einstellungen" }));
+    append(card, toggleRow("🔊", "Ton", "Soundeffekte im Spiel", Sound.isEnabled(), function () { Sound.setEnabled(!Sound.isEnabled()); Sound.unlock(); if (Sound.isEnabled()) Sound.ping(); render(); }));
+    append(card, toggleRow("📳", "Vibration", "Haptisches Feedback (nur Handy)", app.settings.haptics, function () {
+      app.settings.haptics = !app.settings.haptics;
+      localStorage.setItem("luegen.haptics", app.settings.haptics ? "1" : "0");
+      if (app.settings.haptics) Haptic.buzz(25);
+      render();
+    }));
+    append(card, el("div", { style: "margin-top:16px;" }, sectionLabel("Sprache")));
+    var langPick = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:10px;" });
+    [["de", "Deutsch"], ["en", "English"]].forEach(function (o) {
+      var on = app.settings.lang === o[0];
+      append(langPick, el("button", { onclick: function () { app.settings.lang = o[0]; localStorage.setItem("luegen.lang", o[0]); render(); },
+        style: "cursor:pointer;border-radius:12px;padding:12px;font-weight:800;font-size:15px;border:1px solid " + (on ? "#d9a441" : "rgba(31,79,94,.18)") + ";background:" + (on ? "rgba(217,164,65,.18)" : "#fff") + ";color:#173f4c;" }, o[1]));
+    });
+    append(card, langPick);
+    append(wrap, card);
     return wrap;
   }
 
@@ -596,6 +764,35 @@
         + (on ? "background:linear-gradient(180deg,#d98a63,#c2674a);box-shadow:0 12px 26px rgba(194,103,74,.42),inset 0 0 0 1px rgba(255,255,255,.25);"
               : "background:#cbb9a0;box-shadow:none;opacity:.7;"),
     }, label);
+  }
+
+  // Eigene, einfache Einladungs-Seite (kommt man ueber einen ?room=CODE-Link hierher): nur Name + Beitreten.
+  function renderInvite() {
+    var f = app.onlineForm;
+    var code = (f.code || "").toUpperCase();
+    var body = el("div", {});
+    append(body, el("div", { style: "text-align:center;" },
+      el("div", { style: "font-family:'Fraunces',serif;font-style:italic;color:#cf7457;font-size:13px;letter-spacing:.16em;text-transform:uppercase;", text: "Einladung" }),
+      el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:30px;color:#173f4c;margin-top:2px;", text: "Du bist eingeladen!" }),
+      el("div", { style: "font-size:14px;color:#7e948f;margin-top:6px;", text: "Tritt diesem Raum bei:" })));
+    var codeRow = el("div", { style: "margin:16px 0 2px;display:flex;justify-content:center;gap:8px;" });
+    (code || "----").split("").forEach(function (ch) {
+      append(codeRow, el("div", { style: "width:46px;height:56px;border-radius:12px;background:#fff;border:2px solid rgba(217,164,65,.55);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:800;font-size:30px;color:#173f4c;box-shadow:0 6px 16px rgba(0,0,0,.12);", text: ch }));
+    });
+    append(body, codeRow);
+    append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Dein Name")));
+    append(body, textInput(f.name, "Dein Name", function (e) { f.name = e.target.value; localStorage.setItem("luegen.name", f.name); }));
+    append(body, el("div", { style: "margin-top:18px;" }, primaryBtn("Beitreten", function () {
+      var name = (f.name || "").trim(); if (!name) { toast("Bitte gib einen Namen ein."); return; }
+      if (code.length !== 4) { toast("Ungueltiger Einladungslink."); app.screen = "online-setup"; render(); return; }
+      Sound.unlock(); app.leaving = false;
+      mount(connecting());
+      netConnect().then(function () { netSend({ t: "join", code: code, name: name }); })
+        .catch(function () { toast("Verbindung fehlgeschlagen."); app.screen = "invite"; render(); });
+    })));
+    append(body, el("div", { style: "text-align:center;margin-top:14px;" },
+      el("button", { onclick: function () { app.screen = "online-setup"; render(); }, style: "cursor:pointer;border:none;background:none;color:#86a09b;font-weight:700;font-size:13px;text-decoration:underline;" }, "Lieber selbst einen Raum erstellen")));
+    return lobbyCardWrap(body);
   }
 
   function renderOnlineSetup() {
@@ -680,13 +877,13 @@
     if (!r.hasBots) append(body, el("div", { style: "font-size:11px;color:#9bb0aa;margin-top:6px;text-align:center;", text: "Gilt für Bots. Unten mit „+ Bot“ welche hinzufügen." }));
 
     // Players
-    append(body, el("div", { style: "margin-top:18px;" }, sectionLabel("Spieler · " + r.players.length + "/6")));
+    append(body, el("div", { style: "margin-top:18px;" }, sectionLabel(L("Spieler · ", "Players · ") + r.players.length + "/6")));
     var list = el("div", { style: "display:flex;flex-direction:column;gap:8px;" });
     r.players.forEach(function (p) {
       var row = el("div", { style: "display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(31,79,94,.14);border-radius:12px;padding:8px 10px;" },
         el("span", { style: "width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:" + p.color + ";", text: (p.name[0] || "?").toUpperCase() }),
         el("div", { style: "flex:1;min-width:0;" },
-          el("div", { style: "font-weight:700;color:#173f4c;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (p.index === r.you.index ? " (du)" : "") }),
+          el("div", { style: "font-weight:700;color:#173f4c;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (p.index === r.you.index ? L(" (du)", " (you)") : "") }),
           el("div", { style: "font-size:11px;color:#9bb0aa;", text: (p.isHost ? "Host" : "") + (p.isBot ? "Bot" : "") + (!p.connected ? " · offline" : "") })),
         (meHost && !p.isHost) ? el("button", { onclick: function () { netSend({ t: "removeSeat", index: p.index }); }, style: "cursor:pointer;border:none;background:rgba(207,90,76,.12);color:#c15a4c;font-weight:800;border-radius:8px;width:30px;height:30px;font-size:16px;" }, "×") : null
       );
@@ -698,7 +895,7 @@
     if (meHost) {
       append(body, el("div", { style: "display:flex;gap:10px;margin-top:16px;" },
         el("button", { onclick: function () { netSend({ t: "addBot" }); }, disabled: r.players.length >= 6, style: "flex:1;cursor:pointer;border:1px dashed rgba(31,79,94,.3);background:#fff;color:#1f4f5e;font-weight:800;font-size:15px;padding:13px;border-radius:14px;" + (r.players.length >= 6 ? "opacity:.5;" : "") }, "+ Bot")));
-      append(body, el("div", { style: "margin-top:10px;" }, primaryBtn("Spiel starten" + (!r.canStart ? " (≥ " + r.minPlayers + " nötig)" : ""), function () { netSend({ t: "start" }); }, r.canStart)));
+      append(body, el("div", { style: "margin-top:10px;" }, primaryBtn(L("Spiel starten", "Start game") + (!r.canStart ? " (≥ " + r.minPlayers + L(" nötig)", " needed)") : ""), function () { netSend({ t: "start" }); }, r.canStart)));
     } else {
       append(body, el("div", { style: "margin-top:16px;text-align:center;color:#7e948f;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;" },
         el("span", { class: "lg-spinner", style: "width:16px;height:16px;border-width:2px;" }), "Warte auf den Host…"));
@@ -716,6 +913,9 @@
   function renderTable(vm) {
     var compact = window.innerHeight < 780 || window.innerWidth < 500;
     var root = el("div", { style: "position:absolute;inset:0;display:flex;flex-direction:column;" });
+    if (vm.yourTurn && !app.fx.wasYourTurn) Haptic.buzz(18);   // kurzer Stoss, wenn du dran bist
+    app.fx.wasYourTurn = !!vm.yourTurn;
+    app.fx.celebrated = false;                                  // im laufenden Spiel: Feier zuruecksetzen
 
     // Kopfzeile
     var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "·");
@@ -728,29 +928,35 @@
 
     // Gegner
     var oppRow = el("div", { style: "flex:none;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:" + (compact ? "5px 12px" : "10px 14px") + ";padding:" + (compact ? "4px 12px 2px" : "4px 12px 6px") + ";" });
-    vm.players.forEach(function (p) {
-      if (p.index === vm.youIndex) return;
+    var nP = vm.players.length;
+    var ordered = [];
+    for (var oi = 1; oi < nP; oi++) ordered.push(vm.players[(vm.youIndex + oi) % nP]);   // echte Zugreihenfolge ab dem naechsten Spieler nach mir
+    ordered.forEach(function (p) {
+      if (!p || p.index === vm.youIndex) return;
       var isOut = p.out;
       var isPending = vm.pendingFinish === p.index && !isOut;
       var isCur = !isOut && p.index === turnOf(vm) && vm.phase === "play";
+      var isWinner = isOut && p.place === 1;
       var status = "";
-      if (isOut) status = p.place ? ("Platz " + p.place) : "fertig";
+      if (isOut) status = p.place ? (L("Platz ", "Place ") + p.place + (isWinner ? " 🏆" : "")) : "fertig";
       else if (isPending) status = "fertig?";
       else if (isCur) status = p.isBot ? "denkt nach…" : "am Zug";
       else if (vm.lastPlay && p.index === vm.lastPlay.player) status = "hat angesagt";
       else if (!p.connected) status = "offline";
       var medal = p.place === 1 ? "🥇" : p.place === 2 ? "🥈" : p.place === 3 ? "🥉" : (p.place ? p.place + "." : "✓");
       var ring = isCur ? "0 0 0 3px #d9a441,0 6px 16px rgba(0,0,0,.35)"
+        : isWinner ? "0 0 0 3px #f0c14b,0 0 18px rgba(240,193,75,.65),0 6px 16px rgba(0,0,0,.35)"
+        : isOut ? "0 0 0 2px rgba(217,164,65,.7),0 6px 14px rgba(0,0,0,.3)"
         : isPending ? "0 0 0 3px rgba(217,164,65,.6)" : "0 6px 14px rgba(0,0,0,.3)";
-      var avOpacity = isOut ? ".45" : (p.connected ? "1" : ".5");
+      var avOpacity = isOut ? "1" : (p.connected ? "1" : ".5");   // fertige Spieler NICHT ausgrauen (das ist der Offline-Look)
       var badge = isOut
-        ? el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#d9a441;color:#173f4c;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: medal })
+        ? el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:" + (isWinner ? "#f0c14b" : "#d9a441") + ";color:#173f4c;border:2px solid rgba(251,243,226,.35);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: medal })
         : el("span", { style: "position:absolute;bottom:-4px;right:-6px;background:#15464f;color:#fbf3e2;border:2px solid rgba(251,243,226,.3);border-radius:9px;min-width:22px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 4px;", text: String(p.count) });
-      append(oppRow, el("div", { style: "display:flex;flex-direction:column;align-items:center;gap:5px;width:96px;transition:transform .25s;transform:" + (isCur ? "scale(1.05)" : "none") + ";" + (isOut ? "opacity:.8;" : "") },
-        el("div", { style: "position:relative;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:800;font-size:19px;color:#fff;background:" + p.color + ";box-shadow:" + ring + ";opacity:" + avOpacity + ";" },
+      append(oppRow, el("div", { style: "display:flex;flex-direction:column;align-items:center;gap:5px;width:96px;transition:transform .25s;transform:" + (isCur ? "scale(1.05)" : "none") + ";" },
+        el("div", { "data-seat": p.index, style: "position:relative;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:800;font-size:19px;color:#fff;background:" + p.color + ";box-shadow:" + ring + ";opacity:" + avOpacity + ";" + (isOut && !isWinner ? "filter:saturate(.9);" : "") },
           (p.name[0] || "?").toUpperCase(), badge),
         el("div", { style: "font-size:13px;font-weight:700;color:#fbf3e2;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name }),
-        el("div", { style: "font-size:11px;font-weight:600;height:15px;line-height:15px;text-align:center;color:" + (isCur || isPending || isOut ? "#d9a441" : "rgba(251,243,226,.5)") + ";", text: status })));
+        el("div", { style: "font-size:11px;font-weight:" + (isOut ? "800" : "600") + ";height:15px;line-height:15px;text-align:center;color:" + (isWinner ? "#f7d469" : (isCur || isPending || isOut ? "#d9a441" : "rgba(251,243,226,.5)")) + ";", text: status })));
     });
     append(root, oppRow);
 
@@ -766,15 +972,15 @@
 
     var claimSlot = el("div", { style: "flex:none;height:" + (compact ? "40px" : "56px") + ";display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;" });
     if (vm.lastPlay && vm.phase !== "reveal") {
-      append(claimSlot, el("div", { style: "font-size:" + (compact ? "11px" : "12px") + ";letter-spacing:.12em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;line-height:1.1;", text: (vm.lastPlay.player === vm.youIndex ? "Du sagst" : nameOf(vm, vm.lastPlay.player) + " sagt") }));
-      append(claimSlot, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:" + (compact ? "clamp(19px,5vw,25px)" : "clamp(22px,5vw,32px)") + ";color:#d9a441;line-height:1.05;", text: E.claimLabel(vm.lastPlay.count, vm.lastPlay.rank) }));
+      append(claimSlot, el("div", { style: "font-size:" + (compact ? "11px" : "12px") + ";letter-spacing:.12em;text-transform:uppercase;color:rgba(251,243,226,.6);font-weight:700;line-height:1.1;", text: (vm.lastPlay.player === vm.youIndex ? L("Du sagst", "You say") : nameOf(vm, vm.lastPlay.player) + L(" sagt", " says")) }));
+      append(claimSlot, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:" + (compact ? "clamp(19px,5vw,25px)" : "clamp(22px,5vw,32px)") + ";color:#d9a441;line-height:1.05;", text: claimLabelI(vm.lastPlay.count, vm.lastPlay.rank) }));
     }
     append(center, claimSlot);
 
     var pileRegion = el("div", { style: "position:relative;height:" + (compact ? "112px" : "128px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.phase === "reveal" && vm.reveal) {
       var row = el("div", { style: "display:flex;gap:8px;" });
-      vm.reveal.cards.forEach(function (c) { append(row, revealCard(c, vm.reveal.rank)); });
+      vm.reveal.cards.forEach(function (c, i) { append(row, revealCard(c, vm.reveal.rank, i)); });
       append(pileRegion, row);
     } else if (vm.pileCount > 0) {
       append(pileRegion, pileStack(vm.pileCount));
@@ -782,14 +988,14 @@
       append(pileRegion, el("div", { style: "width:80px;height:112px;border:2px dashed rgba(251,243,226,.5);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:rgba(251,243,226,.72);padding:8px;", text: "Neuer Stapel" }));
     }
     // Ablagefeld: dunkle Tafel mit Goldrand. Hebt Stapel und Aufdeckung klar vom hellen Strand ab.
-    var tafel = el("div", { style: "position:relative;display:inline-flex;align-items:center;justify-content:center;"
+    var tafel = el("div", { id: "lg-tafel", style: "position:relative;display:inline-flex;align-items:center;justify-content:center;"
       + "padding:" + (compact ? "12px 30px 18px" : "26px 46px 30px") + ";border-radius:22px;"
       + "background:radial-gradient(135% 125% at 50% 0%,#1c5663 0%,#123c46 55%,#0b2c33 100%);"
       + "box-shadow:0 20px 46px rgba(0,0,0,.5),inset 0 0 0 3px rgba(217,164,65,.92),inset 0 0 24px rgba(0,0,0,.5);" });
     append(tafel, pileRegion);
     append(center, tafel);
 
-    var lugeSlot = el("div", { style: "flex:none;height:" + (compact ? "50px" : "60px") + ";display:flex;align-items:center;justify-content:center;" });
+    var lugeSlot = el("div", { style: "flex:none;height:" + (compact ? "50px" : "60px") + ";margin-top:" + (compact ? "16px" : "10px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.canChallenge) {
       append(lugeSlot, el("button", { onclick: onChallenge.bind(null, vm), style: "border:none;cursor:pointer;background:linear-gradient(180deg,#cf6a5c,#a84436);color:#fff;font-weight:800;font-size:17px;letter-spacing:.04em;padding:12px 28px;border-radius:30px;box-shadow:0 10px 24px rgba(168,68,54,.5),inset 0 0 0 1px rgba(255,255,255,.2);animation:lg-glow 1.8s ease-in-out infinite;" }, "„Lüge!“"));
     }
@@ -814,28 +1020,28 @@
     var youPending = vm.pendingFinish === vm.youIndex && !youOut;
     if (youOut || youPending) {
       var msg = youOut
-        ? ("🏁 Du bist fertig" + (youP.place ? ", Platz " + youP.place : "") + ". Zuschauen bis zum Rundenende…")
+        ? (L("🏁 Du bist fertig", "🏁 You're done") + (youP.place ? L(", Platz ", ", Place ") + youP.place : "") + L(". Zuschauen bis zum Rundenende…", ". Watch until the round ends…"))
         : "Letzte Karte gelegt, warte auf Bestätigung …";
       return el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px;text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
     }
     var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px 8px" : "8px 10px 14px") + ";" });
-    var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? "Du" : nameOf(vm, vm.youIndex));
+    var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? L("Du", "You") : nameOf(vm, vm.youIndex));
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
     var prompt = "";
     if (vm.yourTurn) {
-      if (vm.variant === "asc") prompt = "Sag " + RANKLONG[RANKS[vm.currentRank]] + " an";
-      else if (vm.roundRank != null) prompt = "Lege " + RANKLONG[RANKS[vm.roundRank]];
+      if (vm.variant === "asc") prompt = L("Sag " + rankMany(vm.currentRank) + " an", "Say " + rankMany(vm.currentRank));
+      else if (vm.roundRank != null) prompt = L("Lege " + rankMany(vm.roundRank), "Play " + rankMany(vm.roundRank));
       else prompt = "Wähle deine Zahl ↓";
     }
     append(bottom, el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:" + (compact ? "0 6px 4px" : "0 6px 8px") + ";" },
       el("div", { style: "display:flex;align-items:center;gap:8px;min-width:0;" },
         el("span", { style: "width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;background:" + youColor + ";", text: (youName[0] || "?").toUpperCase() }),
         el("span", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: youName }),
-        el("span", { style: "font-size:12px;color:rgba(251,243,226,.55);font-weight:600;white-space:nowrap;", text: "· " + vm.hand.length + (vm.hand.length === 1 ? " Karte" : " Karten") })),
+        el("span", { style: "font-size:12px;color:rgba(251,243,226,.55);font-weight:600;white-space:nowrap;", text: "· " + kartenLabel(vm.hand.length) })),
       el("div", { style: "font-size:13px;font-weight:700;text-align:right;color:#d9a441;", text: prompt })));
 
     // Handreihe
-    var handRow = el("div", { style: "display:flex;justify-content:safe center;overflow-x:auto;overflow-y:visible;padding:" + (compact ? "8px 18px 2px" : "24px 22px 10px") + ";min-height:" + (compact ? "84px" : "118px") + ";" });
+    var handRow = el("div", { id: "lg-self", "data-keepscroll": "hand", style: "display:flex;justify-content:safe center;overflow-x:auto;overflow-y:visible;padding:" + (compact ? "26px 18px 4px" : "24px 22px 10px") + ";min-height:" + (compact ? "96px" : "118px") + ";" });
     var inner = el("div", { style: "display:flex;align-items:flex-end;" });
     vm.hand.forEach(function (c, idx) {
       var selected = !!app.ui.selected[c.id] && vm.yourTurn;
@@ -849,7 +1055,7 @@
       var dr = vm.deadRanks || {};
       var effPick = app.ui.pickRank != null ? app.ui.pickRank : E.bestRankIdx(vm.hand);
       if (dr[RANKS[effPick]]) effPick = E.bestRankIdx(vm.hand);   // tote Zahl nicht vorwaehlen
-      var chips = el("div", { style: "display:flex;gap:5px;overflow-x:auto;padding:2px;" });
+      var chips = el("div", { "data-keepscroll": "chips", style: "display:flex;gap:5px;overflow-x:auto;padding:2px;" });
       RANKS.forEach(function (r, i) {
         if (r === "A") return;
         var dead = !!dr[r];
@@ -868,7 +1074,7 @@
     var actions = el("div", { style: "display:flex;align-items:center;justify-content:center;gap:10px;padding:2px 6px 0;min-height:" + (compact ? "46px" : "52px") + ";" });
     if (vm.yourTurn) {
       var selCount = Object.keys(app.ui.selected).filter(function (id) { return app.ui.selected[id] && vm.hand.some(function (c) { return c.id === id; }); }).length;
-      var word = vm.variant === "same" ? "Legen" : "Spielen";
+      var word = vm.variant === "same" ? L("Legen", "Play") : L("Spielen", "Play");
       var pb = "border:none;font-weight:800;font-size:17px;padding:13px 30px;border-radius:30px;letter-spacing:.02em;transition:all .15s;"
         + (selCount > 0 ? "cursor:pointer;background:linear-gradient(180deg,#d98a63,#c2674a);color:#fff;box-shadow:0 10px 24px rgba(194,103,74,.45),inset 0 0 0 1px rgba(255,255,255,.22);"
                        : "cursor:default;background:rgba(255,255,255,.12);color:rgba(251,243,226,.5);box-shadow:inset 0 0 0 1px rgba(251,243,226,.18);");
@@ -876,7 +1082,7 @@
     } else if (vm.status === "playing" && vm.phase === "play" && !vm.passHidden) {
       append(actions, el("div", { style: "color:rgba(251,243,226,.7);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;" },
         el("span", { style: "width:8px;height:8px;border-radius:50%;background:#d9a441;animation:lg-glow 1s infinite;" }),
-        (nameOf(vm, turnOf(vm)) + " ist am Zug…")));
+        (nameOf(vm, turnOf(vm)) + L(" ist am Zug…", " is playing…"))));
     }
     append(bottom, actions);
     return bottom;
@@ -895,7 +1101,7 @@
   function pickupOverlay(vm) {
     var pu = vm.pickup;
     var mine = pu.player === vm.youIndex;
-    var title = mine ? "Du nimmst auf" : nameOf(vm, pu.player) + " nimmt auf";
+    var title = mine ? L("Du nimmst auf", "You pick up") : nameOf(vm, pu.player) + L(" nimmt auf", " picks up");
     var inner;
     if (pu.cards) {
       // Eigene aufgenommene Karten — offen.
@@ -908,7 +1114,7 @@
       for (var i = 0; i < n; i++) append(inner, el("div", { class: "lg-pop", style: "width:38px;height:52px;border-radius:6px;background:repeating-linear-gradient(45deg,#2e7d8f 0 7px,#246575 7px 14px);box-shadow:0 3px 8px rgba(0,0,0,.35),inset 0 0 0 2px rgba(217,164,65,.4);" }));
     }
     return el("div", { style: "position:absolute;inset:0;z-index:55;background:rgba(16,54,64,.9);backdrop-filter:blur(5px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:26px;" },
-      el("div", { style: "font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:rgba(251,243,226,.7);font-weight:700;", text: title + " · " + pu.count + (pu.count === 1 ? " Karte" : " Karten") }),
+      el("div", { style: "font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:rgba(251,243,226,.7);font-weight:700;", text: title + " · " + kartenLabel(pu.count) }),
       inner);
   }
 
@@ -918,9 +1124,10 @@
     var youRes = vm.youResultIndex;
     var myPlace = null;
     if (youRes >= 0) { var mm = st.filter(function (s){ return s.player===youRes; })[0]; myPlace = mm ? mm.place : null; }
-    var headline = myPlace===1 ? "🏆 Gewonnen!" : myPlace===2 ? "🥈 2. Platz!" : myPlace===3 ? "🥉 3. Platz!"
-      : (myPlace!=null ? (myPlace + ". Platz") : "Endstand");
+    var headline = myPlace===1 ? L("🏆 Gewonnen!", "🏆 You won!") : myPlace===2 ? L("🥈 2. Platz!", "🥈 2nd place!") : myPlace===3 ? L("🥉 3. Platz!", "🥉 3rd place!")
+      : (myPlace!=null ? L(myPlace + ". Platz", myPlace + "th place") : L("Endstand", "Final standings"));
     var medal = function (p){ return p===1?"🥇":p===2?"🥈":p===3?"🥉":(p+"."); };
+    if (!app.fx.celebrated) { app.fx.celebrated = true; var won = myPlace === 1; celebrate(won); Haptic.buzz(won ? [0, 40, 60, 40, 90] : 18); }
 
     var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto;" });
     var card = el("div", { class: "lg-rise", style: "width:100%;max-width:460px;margin:auto;" });
@@ -930,12 +1137,12 @@
     var board = el("div", { style: "display:flex;flex-direction:column;gap:7px;" });
     st.forEach(function (s) {
       var p = vm.players[s.player]; var mine = (youRes>=0 && s.player===youRes);
-      var sub = s.reason==="finished" ? "alle Karten abgelegt" : s.reason==="aces" ? "alle vier Asse" : ("noch " + (p.count||0) + ((p.count||0) === 1 ? " Karte" : " Karten"));
+      var sub = s.reason==="finished" ? "alle Karten abgelegt" : s.reason==="aces" ? "alle vier Asse" : (L("noch ", "still ") + kartenLabel(p.count||0));
       append(board, el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:" + (mine?"rgba(217,164,65,.18)":"rgba(0,0,0,.22)") + ";border:1px solid " + (mine?"rgba(217,164,65,.55)":"rgba(251,243,226,.12)") + ";" },
         el("div", { style: "width:32px;text-align:center;font-family:'Fraunces',serif;font-weight:800;font-size:18px;color:#fbf3e2;", text: medal(s.place) }),
         el("span", { style: "width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:" + p.color + ";", text: (p.name[0]||"?").toUpperCase() }),
         el("div", { style: "flex:1;min-width:0;" },
-          el("div", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (mine?" (du)":"") }),
+          el("div", { style: "font-weight:800;font-size:15px;color:#fbf3e2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (mine ? L(" (du)", " (you)") : "") }),
           el("div", { style: "font-size:11px;color:rgba(251,243,226,.55);", text: sub }))));
     });
     append(card, board);
@@ -1041,7 +1248,7 @@
       var g = app.off.game, idx = g.turn;
       var chk = E.legalPlay(g, idx, cardIds, rank); if (!chk.ok) { toast(chk.error); return; }
       var r = E.applyPlay(g, idx, cardIds, rank); app.off.game = r.state;
-      Sound.play();
+      Sound.play(); FX.flyPlay(idx, cardIds.length, true);
       if (app.mode === "pass") app.off.revealed = false;
       render();
       if (this.over()) return;
@@ -1049,7 +1256,7 @@
     },
     botPlay: function (idx, cardIds, rank) {
       var r = E.applyPlay(app.off.game, idx, cardIds, rank); app.off.game = r.state;
-      Sound.play(); render();
+      Sound.play(); FX.flyPlay(idx, cardIds.length, false); render();
       if (this.over()) return;
       this.schedule();
     },
@@ -1060,7 +1267,7 @@
       var r = E.applyChallenge(g, by); app.off.game = r.state;
       var rv = app.off.game.reveal;
       Sound.challenge();
-      setBanner(byLabelOffline(by) + " zweifelt an!");
+      setBanner((app.mode === "bots" && by === 0) ? L("Du zweifelst an!", "You call a lie!") : dispOff(by) + L(" zweifelt an!", " calls a lie!"));
       render();
       var self = this;
       this.timers.reveal = setTimeout(function () {
@@ -1069,7 +1276,7 @@
         var res = E.resolveReveal(app.off.game); app.off.game = res.state;
         Sound.reveal(honest);
         var take = takeLabelOffline(loser);
-        setBanner(honest ? ("Die Wahrheit! " + take) : (claimerLabelOffline(claimer) + " geblufft! " + take));
+        setBanner(honest ? (L("Die Wahrheit! ", "The truth! ") + take) : (((app.mode === "bots" && claimer === 0) ? L("Du hast geblufft! ", "You bluffed! ") : dispOff(claimer) + L(" hat geblufft! ", " bluffed! ")) + take));
         render();
         if (self.over()) return;
         if (res.hadPickup) {
@@ -1128,7 +1335,7 @@
   };
   function dispOff(i) { return app.mode === "bots" && i === 0 ? "Du" : (app.off.game.players[i] ? app.off.game.players[i].name : "?"); }
   function byLabelOffline(by) { return app.mode === "bots" && by === 0 ? "Du" : dispOff(by); }
-  function takeLabelOffline(loser) { return (app.mode === "bots" && loser === 0) ? "Du nimmst den Stapel." : dispOff(loser) + " nimmt den Stapel."; }
+  function takeLabelOffline(loser) { return (app.mode === "bots" && loser === 0) ? L("Du nimmst den Stapel.", "You take the pile.") : dispOff(loser) + L(" nimmt den Stapel.", " takes the pile."); }
   function claimerLabelOffline(c) { return (app.mode === "bots" && c === 0) ? "Du hast" : dispOff(c) + " hat"; }
 
   // ----------------------------------------------------------- Offline-Setup
@@ -1164,7 +1371,7 @@
     for (var i = 0; i < cnt; i++) (function (i) {
       append(fields, el("div", { style: "display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(31,79,94,.14);border-radius:12px;padding:6px 8px;" },
         el("span", { style: "width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;background:" + E.PALETTE[i % E.PALETTE.length] + ";", text: ((cfg.names[i] || "").trim()[0] || (i + 1)).toString().toUpperCase() }),
-        el("input", { value: cfg.names[i] || "", maxlength: 14, placeholder: isBots ? "Dein Name" : ("Spieler " + (i + 1)),
+        el("input", { value: cfg.names[i] || "", maxlength: 14, placeholder: isBots ? "Dein Name" : L("Spieler " + (i + 1), "Player " + (i + 1)),
           oninput: function (e) { cfg.names[i] = e.target.value; var dot = e.target.previousSibling; if (dot) dot.textContent = ((e.target.value || "").trim()[0] || (i + 1)).toString().toUpperCase(); },
           style: "flex:1;border:none;outline:none;background:transparent;font-size:15px;font-weight:600;color:#173f4c;min-width:0;" })));
     })(i);
@@ -1181,6 +1388,8 @@
     ensure: function () {
       if (app.mode !== "online" || !app.room) { this.remove(); return; }
       if (!this.el) this.build();
+      if (app.room.status === "over") { this.el.style.display = "none"; return; }   // Endstand: ausblenden, Zustand behalten
+      this.el.style.display = "";
       this.sync();
     },
     build: function () {
@@ -1247,9 +1456,12 @@
       { id: "gay", label: "🌈 Gay", file: "sounds/Gay.mp3" },
     ],
     ensure: function () {
-      var show = (app.screen === "online-room") || (app.screen === "offline-play");
-      if (!show) { this.remove(); return; }
+      var onPlayScreen = (app.screen === "online-room") || (app.screen === "offline-play");
+      if (!onPlayScreen) { this.remove(); return; }
       if (!this.el) this.build();
+      var over = (app.screen === "online-room" && app.room && app.room.status === "over")
+              || (app.screen === "offline-play" && app.off && app.off.game && app.off.game.status === "over");
+      this.el.style.display = over ? "none" : "";   // im Spiel sichtbar, auf der Endstand-Seite ausgeblendet
     },
     build: function () {
       var self = this;
@@ -1310,10 +1522,11 @@
       document.head.appendChild(st);
     }
     if (!$("lg-toast")) document.body.appendChild(el("div", { id: "lg-toast" }));
+    if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js"); } catch (e) {} }   // macht die App installierbar (PWA)
     // ?room=CODE vorbefüllen
     var params = new URLSearchParams(location.search);
     var roomParam = (params.get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (roomParam) { app.onlineForm.code = roomParam; app.screen = "online-setup"; }
+    if (roomParam) { app.onlineForm.code = roomParam; app.screen = "invite"; }   // ueber Einladungslink -> eigene, einfache Beitreten-Seite
     // Vorherige Sitzung wiederaufnehmen?
     var saved = null; try { saved = JSON.parse(localStorage.getItem("luegen.session") || "null"); } catch (e) {}
     if (saved && saved.code && saved.token && !roomParam) {

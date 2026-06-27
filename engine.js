@@ -169,7 +169,8 @@
     };
     terminalScan(state);                 // sehr selten: jemand hält schon 4 Asse
     if (!checkEnd(state)) {
-      if (state.players[0].out || state.players[0].hand.length === 0) state.turn = nextActive(state, 0);
+      state.turn = Math.floor(Math.random() * n);                                    // zufaelliger Startspieler (nicht immer Sitz 0)
+      if (state.players[state.turn].out || state.players[state.turn].hand.length === 0) state.turn = nextActive(state, state.turn);
     }
     return state;
   }
