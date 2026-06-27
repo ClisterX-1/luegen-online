@@ -115,6 +115,8 @@
     function unlock() { var c = ac(); if (c && c.state === "suspended") c.resume(); }
     function tone(freq, dur, type, gain, when) {
       var c = ac(); if (!c || !enabled) return;
+      if (c.state === "suspended") c.resume();   // iOS: Kontext ggf. wieder aufwecken
+
       var t = c.currentTime + (when || 0);
       var o = c.createOscillator(), g = c.createGain();
       o.type = type || "sine"; o.frequency.value = freq;
@@ -138,6 +140,7 @@
     }
     function playClip(id) {
       var c = ac(), buf = clips[id];
+      if (c && c.state === "suspended") c.resume();   // iOS: Kontext ggf. wieder aufwecken
       if (c && buf) { try { var s = c.createBufferSource(); s.buffer = buf; var g = c.createGain(); g.gain.value = 0.9; s.connect(g); g.connect(c.destination); s.start(); return true; } catch (e) {} }
       return false;
     }
@@ -171,10 +174,9 @@
     onlineForm: { name: localStorage.getItem("luegen.name") || "", code: "", variant: "same" },
     banner: { text: "", on: false, timer: null },
     settings: {
-      haptics: localStorage.getItem("luegen.haptics") !== "0",                                   // Vibration standardmaessig an
       lang: localStorage.getItem("luegen.lang") || (((navigator.language || "de").slice(0, 2) === "en") ? "en" : "de")
     },
-    fx: { wasYourTurn: false, celebrated: false },
+    fx: { celebrated: false },
   };
 
   // ----------------------------------------------------------- Sprache (pro Geraet: de / en)
@@ -186,7 +188,6 @@
     "Ein Gerät reihum weitergeben": "Pass one device around",
     "Lege verdeckt Karten und sage eine Zahl an, ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt.": "Play cards face down and call a number, honest or bluffed. Whoever calls „Lie!“ and is wrong takes the pile. First to get rid of all cards wins.",
     "Einstellungen": "Settings", "Ton": "Sound", "Soundeffekte im Spiel": "Sound effects in the game",
-    "Vibration": "Vibration", "Haptisches Feedback (nur Handy)": "Haptic feedback (mobile only)",
     "Sprache": "Language", "Deutsch": "German", "English": "English",
     "Erstelle einen Raum und teile den Code, oder tritt mit einem Code bei.": "Create a room and share the code, or join with a code.",
     "Dein Name": "Your name", "Variante": "Variant", "Gleiche Zahl": "Same number",
@@ -226,7 +227,9 @@
     "Leicht": "Easy", "Mittel": "Medium", "Schwer": "Hard", "blufft selten": "rarely bluffs", "ausgewogen": "balanced",
     "Spielernamen": "Player names", "3 – 6 Spieler": "3 – 6 players", "Spiel starten": "Start game", "+ Bot": "+ Bot",
     "Du gegen KI-Gegner auf diesem Gerät.": "You against AI opponents on this device.",
-    "Reihum auf einem Gerät, Hand wird zwischendurch verdeckt.": "Take turns on one device, the hand is hidden in between."
+    "Reihum auf einem Gerät, Hand wird zwischendurch verdeckt.": "Take turns on one device, the hand is hidden in between.",
+    "‹ Zurück": "‹ Back", "ANSAGE": "CALL", "Lügen": "Lies", "L Ü G E N": "L I E S",
+    "zählt mit, blufft clever": "counts cards, bluffs smart"
   };
   function tr(s) { return (app.settings.lang === "en" && typeof s === "string" && STR[s] != null) ? STR[s] : s; }
   function L(de, en) { return app.settings.lang === "en" ? en : de; }
@@ -238,11 +241,6 @@
   function claimLabelI(count, ri) { return count + " × " + (count === 1 ? rankOne(ri) : rankMany(ri)); }
   function kartenLabel(n) { return n + " " + L(n === 1 ? "Karte" : "Karten", n === 1 ? "card" : "cards"); }
 
-  // ----------------------------------------------------------- Haptik (Vibration, abschaltbar)
-  var Haptic = {
-    ok: function () { return app.settings.haptics && typeof navigator !== "undefined" && navigator.vibrate; },
-    buzz: function (p) { if (this.ok()) { try { navigator.vibrate(p); } catch (e) {} } }
-  };
   // Kurze Konfetti-Feier; reines DOM/CSS, raeumt sich selbst auf.
   function celebrate(big) {
     var layer = el("div", { style: "position:fixed;inset:0;z-index:80;pointer-events:none;overflow:hidden;" });
@@ -564,6 +562,7 @@
   }
 
   function render() {
+    document.title = L("Lügen", "Lies");
     if (app.screen === "home") return mount(renderHome(), "full");
     if (app.screen === "settings") return mount(renderSettings(), "full");
     if (app.screen === "online-setup") return mount(renderOnlineSetup(), "full");
@@ -635,8 +634,8 @@
 
   // ----------------------------------------------------------- Startbildschirm
   function topRightControls() {
-    return el("div", { style: "position:absolute;top:14px;right:14px;z-index:5;display:flex;gap:8px;" },
-      settingsBtn(), soundBtn());
+    return el("div", { style: "position:absolute;top:calc(14px + env(safe-area-inset-top, 0px));right:14px;z-index:5;display:flex;gap:8px;" },
+      settingsBtn());
   }
   function settingsBtn() {
     return el("button", {
@@ -703,12 +702,6 @@
     append(card, backLink(function () { app.screen = "home"; render(); }));
     append(card, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:30px;color:#173f4c;margin-bottom:8px;", text: "Einstellungen" }));
     append(card, toggleRow("🔊", "Ton", "Soundeffekte im Spiel", Sound.isEnabled(), function () { Sound.setEnabled(!Sound.isEnabled()); Sound.unlock(); if (Sound.isEnabled()) Sound.ping(); render(); }));
-    append(card, toggleRow("📳", "Vibration", "Haptisches Feedback (nur Handy)", app.settings.haptics, function () {
-      app.settings.haptics = !app.settings.haptics;
-      localStorage.setItem("luegen.haptics", app.settings.haptics ? "1" : "0");
-      if (app.settings.haptics) Haptic.buzz(25);
-      render();
-    }));
     append(card, el("div", { style: "margin-top:16px;" }, sectionLabel("Sprache")));
     var langPick = el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:10px;" });
     [["de", "Deutsch"], ["en", "English"]].forEach(function (o) {
@@ -733,7 +726,7 @@
       el("div", { style: "font-size:12px;opacity:.7;margin-top:2px;", text: sub }));
   }
   function levelPicker(current, onPick) {
-    var opts = [["leicht", "Leicht", "blufft selten"], ["mittel", "Mittel", "ausgewogen"], ["schwer", "Schwer", "zählt mit, bluff­t clever"]];
+    var opts = [["leicht", "Leicht", "blufft selten"], ["mittel", "Mittel", "ausgewogen"], ["schwer", "Schwer", "zählt mit, blufft clever"]];
     var row = el("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" });
     opts.forEach(function (o) { append(row, pill(current === o[0], o[1], o[2], function () { onPick(o[0]); })); });
     return row;
@@ -750,7 +743,6 @@
     var card = el("div", { class: "lg-rise", style: "width:100%;max-width:480px;background:linear-gradient(180deg,#fdf6e9,#f6e8cf);border-radius:22px;padding:30px 28px 26px;box-shadow:0 30px 80px rgba(0,0,0,.4),0 0 0 1px rgba(217,164,65,.4),inset 0 0 0 4px rgba(255,255,255,.5);color:#173f4c;" });
     append(card, children);
     append(wrap, card);
-    append(wrap, topRightControls());
     return wrap;
   }
   function backLink(onClick) {
@@ -913,13 +905,11 @@
   function renderTable(vm) {
     var compact = window.innerHeight < 780 || window.innerWidth < 500;
     var root = el("div", { style: "position:absolute;inset:0;display:flex;flex-direction:column;" });
-    if (vm.yourTurn && !app.fx.wasYourTurn) Haptic.buzz(18);   // kurzer Stoss, wenn du dran bist
-    app.fx.wasYourTurn = !!vm.yourTurn;
     app.fx.celebrated = false;                                  // im laufenden Spiel: Feier zuruecksetzen
 
     // Kopfzeile
     var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "·");
-    append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:" + (compact ? "7px 12px" : "12px 16px") + ";gap:10px;" },
+    append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:" + (compact ? "calc(7px + env(safe-area-inset-top,0px)) 12px 7px" : "calc(12px + env(safe-area-inset-top,0px)) 16px 12px") + ";gap:10px;" },
       el("button", { onclick: onMenu, style: "background:rgba(0,0,0,.22);border:1px solid rgba(251,243,226,.2);color:#fbf3e2;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;" }, "‹ Menü"),
       el("div", { style: "font-family:'Fraunces',serif;font-weight:700;font-style:italic;letter-spacing:.16em;font-size:15px;color:rgba(251,243,226,.85);", text: "L Ü G E N" }),
       el("div", { style: "display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.22);border:1px solid rgba(217,164,65,.45);border-radius:10px;padding:7px 12px;" },
@@ -1024,7 +1014,7 @@
         : "Letzte Karte gelegt, warte auf Bestätigung …";
       return el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px;text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
     }
-    var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px 8px" : "8px 10px 14px") + ";" });
+    var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px calc(8px + env(safe-area-inset-bottom,0px))" : "8px 10px calc(14px + env(safe-area-inset-bottom,0px))") + ";" });
     var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? L("Du", "You") : nameOf(vm, vm.youIndex));
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
     var prompt = "";
@@ -1127,7 +1117,7 @@
     var headline = myPlace===1 ? L("🏆 Gewonnen!", "🏆 You won!") : myPlace===2 ? L("🥈 2. Platz!", "🥈 2nd place!") : myPlace===3 ? L("🥉 3. Platz!", "🥉 3rd place!")
       : (myPlace!=null ? L(myPlace + ". Platz", myPlace + "th place") : L("Endstand", "Final standings"));
     var medal = function (p){ return p===1?"🥇":p===2?"🥈":p===3?"🥉":(p+"."); };
-    if (!app.fx.celebrated) { app.fx.celebrated = true; var won = myPlace === 1; celebrate(won); Haptic.buzz(won ? [0, 40, 60, 40, 90] : 18); }
+    if (!app.fx.celebrated) { app.fx.celebrated = true; celebrate(myPlace === 1); }
 
     var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto;" });
     var card = el("div", { class: "lg-rise", style: "width:100%;max-width:460px;margin:auto;" });
@@ -1477,7 +1467,7 @@
     toggle: function () {
       this.open = !this.open;
       this.panel.style.display = this.open ? "grid" : "none";
-      this.toggleBtn.textContent = this.open ? "🎵 zu" : "🎵 Sounds";
+      this.toggleBtn.textContent = this.open ? L("🎵 zu", "🎵 close") : "🎵 Sounds";
     },
     play: function (it) {
       this.playFile(it);   // sofort lokal (kein Warten auf Server-Echo)
@@ -1523,6 +1513,7 @@
     }
     if (!$("lg-toast")) document.body.appendChild(el("div", { id: "lg-toast" }));
     if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js"); } catch (e) {} }   // macht die App installierbar (PWA)
+    document.addEventListener("pointerdown", function () { Sound.unlock(); }, { passive: true });   // iOS: Audio bei jeder Beruehrung aufwecken
     // ?room=CODE vorbefüllen
     var params = new URLSearchParams(location.search);
     var roomParam = (params.get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

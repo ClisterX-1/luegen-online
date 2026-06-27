@@ -18,6 +18,9 @@ input { font-family: inherit; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.2); border-radius: 8px; }
+/* Hand und Zahl-Auswahl: wischbar, aber ohne sichtbaren Scrollbalken */
+[data-keepscroll] { scrollbar-width: none; -ms-overflow-style: none; }
+[data-keepscroll]::-webkit-scrollbar { display: none; }
 
 @keyframes lg-pop  { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes lg-rise { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
