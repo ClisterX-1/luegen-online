@@ -176,7 +176,7 @@
     settings: {
       lang: localStorage.getItem("luegen.lang") || (((navigator.language || "de").slice(0, 2) === "en") ? "en" : "de")
     },
-    fx: { celebrated: false },
+    fx: { celebrated: false, statsRecorded: false, deadSeen: {}, lastChallenger: -1 },
   };
 
   // ----------------------------------------------------------- Sprache (pro Geraet: de / en)
@@ -240,6 +240,42 @@
   function rankOne(ri) { var r = RANKS[ri]; return app.settings.lang === "en" ? RANK_EN_ONE[r] : RANK_DE_ONE[r]; }
   function claimLabelI(count, ri) { return count + " × " + (count === 1 ? rankOne(ri) : rankMany(ri)); }
   function kartenLabel(n) { return n + " " + L(n === 1 ? "Karte" : "Karten", n === 1 ? "card" : "cards"); }
+  function personaLabel(p) {
+    switch (p) {
+      case "vorsichtig":   return L("vorsichtig", "cautious");
+      case "draufgaenger": return L("Draufgänger", "daredevil");
+      case "zaehler":      return L("Kartenzähler", "card counter");
+      case "pokerface":    return L("Pokerface", "poker face");
+      default: return L("Bot", "bot");
+    }
+  }
+  function botTauntLine(k) {
+    switch (k) {
+      case "bluff": return L("Vertrau mir einfach.", "Just trust me.");
+      case "doubt": return L("Das kaufe ich dir nicht ab.", "I'm not buying that.");
+      case "calm":  return L("Alles im Griff.", "All under control.");
+      case "count": return L("Ich zähle übrigens mit.", "I'm counting, by the way.");
+      case "bold":  return L("Augen zu und durch.", "Go big or go home.");
+      default: return "…";
+    }
+  }
+  // System-Meldungen vom Server kommen als Code + Parameter -> hier in die eigene Sprache uebersetzt.
+  function sysText(m) {
+    var p = m.params || {}, n = p.name || "";
+    switch (m.code) {
+      case "game.started":   return L("Neue Partie gestartet.", "New game started.");
+      case "room.created":   return L(n + " hat den Raum erstellt.", n + " created the room.");
+      case "player.joined":  return L(n + " ist beigetreten.", n + " joined.");
+      case "player.back":    return L(n + " ist wieder da.", n + " is back.");
+      case "bot.added":      return L("Bot " + n + " hinzugefügt.", "Bot " + n + " added.");
+      case "bot.removed":    return L(n + " (Bot) entfernt.", n + " (bot) removed.");
+      case "player.removed": return L(n + " entfernt.", n + " removed.");
+      case "player.left":    return L(n + " hat den Raum verlassen.", n + " left the room.");
+      case "player.offline": return L(n + " ist offline.", n + " is offline.");
+      case "bot.taunt":      return n + ": " + botTauntLine(p.line);
+      default: return m.text || "";
+    }
+  }
 
   // Kurze Konfetti-Feier; reines DOM/CSS, raeumt sich selbst auf.
   function celebrate(big) {
@@ -256,17 +292,16 @@
     setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, big ? 4400 : 3400);
   }
 
-  // ----------------------------------------------------------- Karten-Flug (Legen)
+  // ----------------------------------------------------------- Karten-Flug (Legen + Aufnehmen)
   var FX = {
     reduce: function () { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; },
-    flyPlay: function (seat, count, isSelf) {
+    seatEl: function (seat, isSelf) {
+      return isSelf ? document.getElementById("lg-self") : document.querySelector('#lg-content [data-seat="' + seat + '"]');
+    },
+    fly: function (srcEl, dstEl, count, shrink) {
       try {
-        if (this.reduce()) return;
-        var tafel = document.getElementById("lg-tafel"); if (!tafel) return;
-        var srcEl = isSelf ? document.getElementById("lg-self") : document.querySelector('#lg-content [data-seat="' + seat + '"]');
-        if (!srcEl) srcEl = document.getElementById("lg-self") || document.querySelector('#lg-content [data-seat="' + seat + '"]');
-        if (!srcEl) return;
-        var s = srcEl.getBoundingClientRect(), d = tafel.getBoundingClientRect();
+        if (this.reduce() || !srcEl || !dstEl) return;
+        var s = srcEl.getBoundingClientRect(), d = dstEl.getBoundingClientRect();
         var fx = s.left + s.width / 2, fy = s.top + s.height / 2, tx = d.left + d.width / 2, ty = d.top + d.height / 2;
         var n = Math.min(count || 1, 4), topY = Math.min(fy, ty) - 56;
         var layer = document.getElementById("lg-fx");
@@ -277,15 +312,39 @@
             var card = el("div", { style: "position:fixed;left:-23px;top:-32px;width:46px;height:64px;border-radius:8px;background:repeating-linear-gradient(45deg,#2e7d8f 0 8px,#246575 8px 16px);box-shadow:0 8px 18px rgba(0,0,0,.45),inset 0 0 0 3px rgba(217,164,65,.55),inset 0 0 0 5px #246575;will-change:transform,opacity;" });
             layer.appendChild(card);
             card.animate([
-              { transform: "translate(" + fx + "px," + fy + "px) scale(.7) rotate(" + (jr * 1.5) + "deg)", opacity: 0.25 },
+              { transform: "translate(" + fx + "px," + fy + "px) scale(" + (shrink ? 1 : 0.72) + ") rotate(" + (jr * 1.5) + "deg)", opacity: shrink ? 1 : 0.28 },
               { transform: "translate(" + ((fx + tx) / 2 + jx) + "px," + topY + "px) scale(1.05) rotate(" + jr + "deg)", opacity: 1, offset: 0.55 },
-              { transform: "translate(" + (tx + jx) + "px," + ty + "px) scale(.95) rotate(" + (jr / 2) + "deg)", opacity: 1 }
-            ], { duration: 480, delay: k * 70, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" })
+              { transform: "translate(" + (tx + jx) + "px," + ty + "px) scale(" + (shrink ? 0.45 : 0.95) + ") rotate(" + (jr / 2) + "deg)", opacity: shrink ? 0.15 : 1 }
+            ], { duration: 520, delay: k * 70, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" })
               .finished.then(function () { if (card.parentNode) card.parentNode.removeChild(card); }).catch(function () {});
           })(i);
         }
       } catch (e) {}
+    },
+    flyPlay: function (seat, count, isSelf) {
+      this.fly(this.seatEl(seat, isSelf) || document.getElementById("lg-self"), document.getElementById("lg-tafel"), count, false);
+    },
+    flyPickup: function (seat, count, isSelf) {
+      this.fly(document.getElementById("lg-tafel"), this.seatEl(seat, isSelf) || document.getElementById("lg-self"), count, true);
     }
+  };
+
+  // ------------------------------------------- Vierersatz-Meldung + dauerhafte Statistik
+  function announceDeadRanks(dr) {
+    dr = dr || {};
+    for (var r in dr) {
+      if (!dr[r] || app.fx.deadSeen[r]) continue;
+      app.fx.deadSeen[r] = true;
+      var nm = app.settings.lang === "en" ? RANK_EN_MANY[r] : E.RANKLONG[r];
+      toast(L("Alle vier " + nm + " sind aus dem Spiel (Vierersatz).", "All four " + nm + " are out of the game (four of a kind)."));
+    }
+  }
+  var Stats = {
+    key: "luegen.stats",
+    load: function () { try { return JSON.parse(localStorage.getItem(this.key) || "{}"); } catch (e) { return {}; } },
+    save: function (s) { try { localStorage.setItem(this.key, JSON.stringify(s)); } catch (e) {} },
+    bump: function (f) { var s = this.load(); s[f] = (s[f] || 0) + 1; this.save(s); },
+    reset: function () { this.save({}); }
   };
 
   // ----------------------------------------------------------- Toast
@@ -356,13 +415,21 @@
       case "state": {
         var prevMine = app.room ? app.room.yourTurn : false;
         var prevStatus = app.room ? app.room.status : null;
+        var prevPhase = app.room ? app.room.phase : null;
+        var prevPickup = app.room ? app.room.pickup : null;
         app.room = m.room;
+        if (m.room.status === "playing" && prevStatus !== "playing") { app.fx.deadSeen = {}; app.fx.statsRecorded = false; }
         if (m.room.yourTurn && !prevMine) Sound.turn();
         if (!m.room.yourTurn) { app.ui.selected = {}; app.ui.pickRank = null; }
         if (m.room.status === "over" && prevStatus !== "over") {
           var meS = m.room.standings && m.room.standings.filter(function (s) { return s.player === m.room.you.index; })[0];
           Sound[(meS && meS.place === 1) ? "win" : "lose"]();
         }
+        // Aufnehmen-Flug: sobald die Aufnehmen-Phase endet, fliegen die Karten zum Spieler.
+        if (prevPhase === "pickup" && m.room.phase !== "pickup" && prevPickup) {
+          FX.flyPickup(prevPickup.player, prevPickup.count, prevPickup.player === m.room.you.index);
+        }
+        if (m.room.status === "playing") announceDeadRanks(m.room.deadRanks);
         render(); Chat.ensure();
         break;
       }
@@ -387,11 +454,17 @@
       case "play": Sound.play(); FX.flyPlay(m.player, m.count, m.player === youIdx()); break;
       case "challenge": {
         Sound.challenge();
+        app.fx.lastChallenger = m.by;
         setBanner(m.by === youIdx() ? L("Du zweifelst an!", "You call a lie!") : pname(m.by) + L(" zweifelt an!", " calls a lie!"));
         break;
       }
       case "reveal_done": {
         Sound.reveal(m.honest);
+        if (!m.honest) {
+          if (app.fx.lastChallenger === youIdx()) Stats.bump("caught");   // du hast eine Luege entlarvt
+          if (m.claimer === youIdx()) Stats.bump("busted");               // du wurdest beim Bluffen erwischt
+        }
+        app.fx.lastChallenger = -1;
         var take = m.loser === youIdx() ? L("Du nimmst den Stapel.", "You take the pile.") : pname(m.loser) + L(" nimmt den Stapel.", " takes the pile.");
         var text = m.honest ? (L("Die Wahrheit! ", "The truth! ") + take)
           : ((m.claimer === youIdx() ? L("Du hast geblufft! ", "You bluffed! ") : pname(m.claimer) + L(" hat geblufft! ", " bluffed! ")) + take);
@@ -565,6 +638,7 @@
     document.title = L("Lügen", "Lies");
     if (app.screen === "home") return mount(renderHome(), "full");
     if (app.screen === "settings") return mount(renderSettings(), "full");
+    if (app.screen === "rules") return mount(renderRules(), "full");
     if (app.screen === "online-setup") return mount(renderOnlineSetup(), "full");
     if (app.screen === "invite") return mount(renderInvite(), "full");
     if (app.screen === "offline-setup") return mount(renderOfflineSetup(), "full");
@@ -681,6 +755,8 @@
       big({ t: "Pass & Play", icon: "📱" }, "Ein Gerät reihum weitergeben", "linear-gradient(180deg,#5a8c6e,#447256)", function () { app.mode = "pass"; app.offStats = {}; app.screen = "offline-setup"; render(); })
     ));
     append(card, el("div", { style: "text-align:center;margin-top:18px;font-size:12px;color:#8aa39e;line-height:1.5;", text: "Lege verdeckt Karten und sage eine Zahl an, ehrlich oder geblufft. Wer „Lüge!“ ruft und falsch liegt, nimmt den Stapel. Wer zuerst alle Karten los ist, gewinnt." }));
+    append(card, el("div", { style: "text-align:center;margin-top:8px;" },
+      el("button", { onclick: function () { app.screen = "rules"; render(); }, style: "cursor:pointer;border:none;background:none;color:#cf7457;font-weight:800;font-size:13px;text-decoration:underline;" }, L("So geht's ›", "How to play ›"))));
     append(wrap, card);
     append(wrap, topRightControls());
     return wrap;
@@ -710,6 +786,48 @@
         style: "cursor:pointer;border-radius:12px;padding:12px;font-weight:800;font-size:15px;border:1px solid " + (on ? "#d9a441" : "rgba(31,79,94,.18)") + ";background:" + (on ? "rgba(217,164,65,.18)" : "#fff") + ";color:#173f4c;" }, o[1]));
     });
     append(card, langPick);
+
+    // Dauerhafte Statistik (nur sichtbar, wenn schon gespielt wurde -> kein Ballast fuer Neulinge)
+    var st = Stats.load();
+    if (st.games) {
+      append(card, el("div", { style: "margin-top:18px;" }, sectionLabel(L("Deine Statistik", "Your stats"))));
+      append(card, el("div", { style: "background:#fff;border:1px solid rgba(31,79,94,.14);border-radius:14px;padding:12px 14px;font-size:14px;color:#173f4c;display:flex;flex-direction:column;gap:6px;" },
+        statRow(L("Partien", "Games"), st.games),
+        statRow(L("Siege", "Wins"), st.win || 0),
+        statRow(L("2. / 3. Platz", "2nd / 3rd place"), (st.p2 || 0) + " / " + (st.p3 || 0)),
+        statRow(L("Lügen entlarvt", "Lies caught"), st.caught || 0),
+        statRow(L("Beim Bluffen erwischt", "Caught bluffing"), st.busted || 0)));
+      append(card, el("div", { style: "text-align:center;margin-top:8px;" },
+        el("button", { onclick: function () { Stats.reset(); render(); }, style: "cursor:pointer;border:none;background:none;color:#9bb0aa;font-weight:700;font-size:12px;text-decoration:underline;" }, L("Statistik zurücksetzen", "Reset stats"))));
+    }
+
+    append(wrap, card);
+    return wrap;
+  }
+  function statRow(label, val) {
+    return el("div", { style: "display:flex;justify-content:space-between;gap:10px;" },
+      el("span", { style: "color:#86a09b;", text: label }),
+      el("span", { style: "font-weight:800;", text: String(val) }));
+  }
+
+  // ----------------------------------------------------------- So geht's (kompakte Regeln)
+  function renderRules() {
+    var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto;" });
+    var card = el("div", { class: "lg-rise", style: "width:100%;max-width:460px;margin:auto;background:linear-gradient(180deg,#fdf6e9,#f6e8cf);border-radius:22px;padding:28px 26px;box-shadow:0 30px 80px rgba(0,0,0,.4),0 0 0 1px rgba(217,164,65,.4),inset 0 0 0 4px rgba(255,255,255,.5);color:#173f4c;" });
+    append(card, backLink(function () { app.screen = "home"; render(); }));
+    append(card, el("div", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:30px;margin-bottom:4px;", text: L("So geht's", "How to play") }));
+    function rule(t, d) {
+      return el("div", { style: "margin-top:12px;" },
+        el("div", { style: "font-weight:800;font-size:15px;color:#173f4c;", text: t }),
+        el("div", { style: "font-size:13.5px;color:#6f8a86;line-height:1.5;margin-top:2px;", text: d }));
+    }
+    append(card, rule(L("Ziel", "Goal"), L("Wer zuerst alle Karten los ist, gewinnt.", "The first player to get rid of all cards wins.")));
+    append(card, rule(L("Dein Zug", "Your turn"), L("Lege eine bis vier Karten verdeckt ab und sage eine Zahl an. Du darfst dabei lügen.", "Play one to four cards face down and call a number. You are allowed to lie.")));
+    append(card, rule(L("Anzweifeln", "Calling a lie"), L("Jeder darf jederzeit „Lüge!“ rufen. War die Ansage ehrlich, nimmt der Zweifler den Stapel. War sie gelogen, nimmt der Leger den Stapel.", "Anyone can call „Lie!“ at any time. If the call was honest, the doubter takes the pile. If it was a lie, the player who laid the cards takes the pile.")));
+    append(card, rule(L("Vierersatz", "Four of a kind"), L("Hat jemand alle vier einer Zahl auf der Hand, fliegen sie automatisch aus dem Spiel. Diese Zahl kann danach niemand mehr ansagen, sie ist durchgestrichen.", "If someone holds all four of a number, they are removed from the game automatically. Nobody can call that number afterwards, it appears crossed out.")));
+    append(card, rule(L("Asse", "Aces"), L("Wer alle vier Asse auf der Hand hat, scheidet sofort aus.", "Whoever ends up holding all four aces is out immediately.")));
+    append(card, rule(L("Letzte Karte", "Last card"), L("Deine letzte Karte zählt erst, wenn der nächste Spieler übernimmt oder ein Anzweifeln zeigt, dass du ehrlich warst.", "Your last card only counts once the next player continues, or a challenge proves you were honest.")));
+    append(card, rule(L("Varianten", "Variants"), L("Gleiche Zahl: die Zahl der Runde bleibt gleich. Aufsteigend: 2, 3, 4 … der Reihe nach.", "Same number: the round sticks to one number. Ascending: 2, 3, 4 … in order.")));
     append(wrap, card);
     return wrap;
   }
@@ -876,7 +994,7 @@
         el("span", { style: "width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;background:" + p.color + ";", text: (p.name[0] || "?").toUpperCase() }),
         el("div", { style: "flex:1;min-width:0;" },
           el("div", { style: "font-weight:700;color:#173f4c;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", text: p.name + (p.index === r.you.index ? L(" (du)", " (you)") : "") }),
-          el("div", { style: "font-size:11px;color:#9bb0aa;", text: (p.isHost ? "Host" : "") + (p.isBot ? "Bot" : "") + (!p.connected ? " · offline" : "") })),
+          el("div", { style: "font-size:11px;color:#9bb0aa;", text: (p.isBot ? ("Bot · " + personaLabel(p.persona)) : (p.isHost ? "Host" : "")) + (!p.connected ? " · offline" : "") })),
         (meHost && !p.isHost) ? el("button", { onclick: function () { netSend({ t: "removeSeat", index: p.index }); }, style: "cursor:pointer;border:none;background:rgba(207,90,76,.12);color:#c15a4c;font-weight:800;border-radius:8px;width:30px;height:30px;font-size:16px;" }, "×") : null
       );
       append(list, row);
@@ -905,16 +1023,21 @@
   function renderTable(vm) {
     var compact = window.innerHeight < 780 || window.innerWidth < 500;
     var root = el("div", { style: "position:absolute;inset:0;display:flex;flex-direction:column;" });
-    app.fx.celebrated = false;                                  // im laufenden Spiel: Feier zuruecksetzen
+    app.fx.celebrated = false; app.fx.statsRecorded = false;     // im laufenden Spiel: Feier/Statistik zuruecksetzen
 
     // Kopfzeile
     var anker = vm.variant === "asc" ? RANKS[vm.currentRank] : (vm.roundRank != null ? RANKS[vm.roundRank] : "·");
+    // Ansage-Anzeige nur bei "aufsteigend" (dort weicht die geforderte Zahl von der letzten Ansage ab).
+    // Bei "gleiche Zahl" steht die Zahl schon gross in der Mitte -> hier nur ein Platzhalter, damit der Titel mittig bleibt.
+    var ansageBox = (vm.variant === "asc")
+      ? el("div", { style: "display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.22);border:1px solid rgba(217,164,65,.45);border-radius:10px;padding:7px 12px;" },
+          el("span", { style: "font-size:11px;color:rgba(251,243,226,.6);font-weight:700;letter-spacing:.05em;", text: "ANSAGE" }),
+          el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:18px;color:#d9a441;line-height:1;", text: anker }))
+      : el("div", { style: "width:74px;flex:none;" });
     append(root, el("div", { style: "flex:none;display:flex;align-items:center;justify-content:space-between;padding:" + (compact ? "calc(7px + env(safe-area-inset-top,0px)) 12px 7px" : "calc(12px + env(safe-area-inset-top,0px)) 16px 12px") + ";gap:10px;" },
       el("button", { onclick: onMenu, style: "background:rgba(0,0,0,.22);border:1px solid rgba(251,243,226,.2);color:#fbf3e2;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;" }, "‹ Menü"),
       el("div", { style: "font-family:'Fraunces',serif;font-weight:700;font-style:italic;letter-spacing:.16em;font-size:15px;color:rgba(251,243,226,.85);", text: "L Ü G E N" }),
-      el("div", { style: "display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.22);border:1px solid rgba(217,164,65,.45);border-radius:10px;padding:7px 12px;" },
-        el("span", { style: "font-size:11px;color:rgba(251,243,226,.6);font-weight:700;letter-spacing:.05em;", text: "ANSAGE" }),
-        el("span", { style: "font-family:'Fraunces',serif;font-weight:800;font-size:18px;color:#d9a441;line-height:1;", text: anker }))));
+      ansageBox));
 
     // Gegner
     var oppRow = el("div", { style: "flex:none;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:" + (compact ? "5px 12px" : "10px 14px") + ";padding:" + (compact ? "4px 12px 2px" : "4px 12px 6px") + ";" });
@@ -1020,7 +1143,7 @@
     var prompt = "";
     if (vm.yourTurn) {
       if (vm.variant === "asc") prompt = L("Sag " + rankMany(vm.currentRank) + " an", "Say " + rankMany(vm.currentRank));
-      else if (vm.roundRank != null) prompt = L("Lege " + rankMany(vm.roundRank), "Play " + rankMany(vm.roundRank));
+      else if (vm.roundRank != null) prompt = L("Du bist dran ↓", "Your turn ↓");   // Zahl steht schon gross in der Mitte
       else prompt = "Wähle deine Zahl ↓";
     }
     append(bottom, el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;padding:" + (compact ? "0 6px 4px" : "0 6px 8px") + ";" },
@@ -1118,6 +1241,11 @@
       : (myPlace!=null ? L(myPlace + ". Platz", myPlace + "th place") : L("Endstand", "Final standings"));
     var medal = function (p){ return p===1?"🥇":p===2?"🥈":p===3?"🥉":(p+"."); };
     if (!app.fx.celebrated) { app.fx.celebrated = true; celebrate(myPlace === 1); }
+    if (!app.fx.statsRecorded && myPlace != null) {
+      app.fx.statsRecorded = true;
+      Stats.bump("games");
+      if (myPlace === 1) Stats.bump("win"); else if (myPlace === 2) Stats.bump("p2"); else if (myPlace === 3) Stats.bump("p3");
+    }
 
     var wrap = el("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto;" });
     var card = el("div", { class: "lg-rise", style: "width:100%;max-width:460px;margin:auto;" });
@@ -1230,7 +1358,9 @@
       app.off = { mode: mode, variant: cfg.variant, revealed: mode !== "pass" };
       app.off.game = E.newGame({ players: players, variant: cfg.variant });
       Sound.unlock(); app.banner.on = false;
+      app.fx.deadSeen = {}; app.fx.statsRecorded = false; app.fx.lastChallenger = -1;
       render();
+      announceDeadRanks(app.off.game.deadRanks);
       if (this.over()) return;
       this.schedule();
     },
@@ -1256,6 +1386,7 @@
       this.clearTimers();
       var r = E.applyChallenge(g, by); app.off.game = r.state;
       var rv = app.off.game.reveal;
+      app.fx.lastChallenger = by;
       Sound.challenge();
       setBanner((app.mode === "bots" && by === 0) ? L("Du zweifelst an!", "You call a lie!") : dispOff(by) + L(" zweifelt an!", " calls a lie!"));
       render();
@@ -1265,13 +1396,21 @@
         var honest = rv.honest, loser = rv.loser, claimer = rv.claimer;
         var res = E.resolveReveal(app.off.game); app.off.game = res.state;
         Sound.reveal(honest);
+        if (!honest && app.mode === "bots") {
+          if (app.fx.lastChallenger === 0) Stats.bump("caught");
+          if (claimer === 0) Stats.bump("busted");
+        }
+        app.fx.lastChallenger = -1;
         var take = takeLabelOffline(loser);
         setBanner(honest ? (L("Die Wahrheit! ", "The truth! ") + take) : (((app.mode === "bots" && claimer === 0) ? L("Du hast geblufft! ", "You bluffed! ") : dispOff(claimer) + L(" hat geblufft! ", " bluffed! ")) + take));
         render();
+        announceDeadRanks(app.off.game.deadRanks);
         if (self.over()) return;
         if (res.hadPickup) {
           self.timers.pickup = setTimeout(function () {
             self.timers.pickup = null;
+            var pu = app.off.game.pickup;
+            if (pu) FX.flyPickup(pu.player, pu.cards.length, (app.mode === "bots" && pu.player === 0));
             app.off.game = E.endPickup(app.off.game);
             if (app.mode === "pass") app.off.revealed = false;
             render(); self.schedule();
@@ -1392,7 +1531,12 @@
       var head = el("div", { style: "display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.12);flex:none;" },
         el("span", { style: "font-weight:800;color:#fbf3e2;font-size:14px;" }, "Chat"),
         el("button", { type: "button", "aria-label": "Chat schließen", onclick: function () { self.toggle(); }, style: "border:none;background:rgba(255,255,255,.12);color:#fbf3e2;cursor:pointer;width:28px;height:28px;border-radius:8px;font-size:15px;font-weight:800;line-height:1;flex:none;" }, "✕"));
-      this.panel = el("div", { class: "panel", style: "display:none;" }, head, this.log, form);
+      // Schnell-Chat: vorgefertigte Sprueche, statt auf dem Handy zu tippen.
+      var quick = el("div", { class: "quick" });
+      [L("Lüge!", "Lie!"), L("Nie im Leben", "No way"), L("Respekt!", "Respect!"), L("Gut gespielt", "Well played"), "😂", "😱", "🤨", "🔥"].forEach(function (p) {
+        append(quick, el("button", { type: "button", class: "q", onclick: function () { netSend({ t: "chat", text: p }); } }, p));
+      });
+      this.panel = el("div", { class: "panel", style: "display:none;" }, head, this.log, quick, form);
       this.toggleBtn = el("button", { class: "lg-chat-toggle", onclick: function () { self.toggle(); } }, el("span", {}, "💬 Chat"), el("span", { class: "lg-chat-badge", style: "display:none;" }, "0"));
       this.el = el("div", { id: "lg-chat" }, this.toggleBtn, this.panel);
       document.body.appendChild(this.el);
@@ -1416,7 +1560,7 @@
       if (this.open) this.log.scrollTop = this.log.scrollHeight;
     },
     append: function (m) {
-      if (m.sys) { append(this.log, el("div", { class: "row sys", text: m.text })); return; }
+      if (m.sys) { append(this.log, el("div", { class: "row sys", text: sysText(m) })); return; }
       append(this.log, el("div", { class: "row" },
         el("span", { class: "who", style: "color:" + (m.color || "#d9a441") + ";", text: (m.name || "?") + ": " }),
         document.createTextNode(m.text)));

@@ -26,6 +26,7 @@
   // ----------------------------------------------------------------- Konstanten
   var RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
   var RANKLONG = {"2":"Zweien","3":"Dreien","4":"Vieren","5":"Fünfen","6":"Sechsen","7":"Siebenen","8":"Achten","9":"Neunen","10":"Zehnen","J":"Buben","Q":"Damen","K":"Könige","A":"Asse"};
+  var PERSONAS = ["vorsichtig", "draufgaenger", "zaehler", "pokerface"];
   var RANKSINGULAR = {"2":"Zwei","3":"Drei","4":"Vier","5":"Fünf","6":"Sechs","7":"Sieben","8":"Acht","9":"Neun","10":"Zehn","J":"Bube","Q":"Dame","K":"König","A":"Ass"};
   var SUITS = [
     { s:"H", sym:"♥", red:true },
@@ -154,7 +155,9 @@
     var variant = opts.variant === "asc" ? "asc" : "same";
     var deck = buildDeck();
     var players = opts.players.map(function (p, i) {
-      return { name:p.name, color:p.color||PALETTE[i%PALETTE.length], isBot:!!p.isBot, hand:[], out:false, place:null };
+      return { name:p.name, color:p.color||PALETTE[i%PALETTE.length], isBot:!!p.isBot,
+               persona: (p.isBot ? (p.persona || PERSONAS[Math.floor(Math.random()*PERSONAS.length)]) : null),
+               hand:[], out:false, place:null };
     });
     deck.forEach(function (c, i){ players[i % n].hand.push(c); });
     players.forEach(function (p){ sortHand(p.hand); });
@@ -348,6 +351,11 @@
         if (oppFinishing) pCh = Math.max(pCh, impossible ? 0.97 : 0.5);
         if (hand.length <= 2) pCh += 0.08;
       }
+      // Persoenlichkeit faerbt das Anzweifeln ein.
+      var per = state.players[me].persona;
+      if (per === "vorsichtig") pCh *= 0.6;
+      else if (per === "draufgaenger") pCh = Math.min(0.95, pCh * 1.5 + 0.06);
+      else if (per === "zaehler") pCh = impossible ? 0.99 : Math.min(0.9, pCh * 1.2);
       if (Math.random() < pCh) return { action: "challenge" };
     }
 
@@ -395,6 +403,14 @@
       } else { // mittel
         toPlay = sorted.slice(0, Math.min(Math.random() < 0.6 ? 1 : 2, hand.length));
       }
+    }
+    // Persoenlichkeit faerbt die Kartenzahl ein: vorsichtig legt sparsam, Draufgaenger haut mehr raus.
+    var per2 = state.players[me].persona;
+    if (per2 === "vorsichtig" && toPlay && toPlay.length > 1) toPlay = toPlay.slice(0, 1);
+    else if (per2 === "draufgaenger" && toPlay && toPlay.length < 3 && hand.length > toPlay.length) {
+      var pool2 = shuffle(hand.filter(function (c){ return toPlay.indexOf(c) < 0 && c.rank !== "A"; }));
+      var room4b = Math.max(1, 4 - (cc[reqIdx] || 0));
+      while (toPlay.length < Math.min(room4b, 3) && pool2.length && Math.random() < 0.6) toPlay.push(pool2.shift());
     }
     if (!toPlay || !toPlay.length) toPlay = hand.slice(0, 1);
     return { action: "play", cardIds: toPlay.map(function (c){ return c.id; }), rank: reqIdx };

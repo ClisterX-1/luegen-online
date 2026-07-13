@@ -111,6 +111,7 @@ function redactFor(room, seatIndex) {
     name: s.name,
     color: s.color,
     isBot: s.isBot,
+    persona: s.persona || null,
     connected: s.connected,
     isHost: s.id === room.hostId,
     count: g ? g.players[i].hand.length : 0,
@@ -203,8 +204,23 @@ function pushChat(room, entry) {
   if (room.chat.length > 200) room.chat.shift();
 }
 
-function systemChat(room, text) {
-  pushChat(room, { sys: true, text, ts: Date.now() });
+// System-Meldungen als Code + Parameter: jeder Client uebersetzt sie in SEINE Sprache.
+function systemChat(room, code, params) {
+  pushChat(room, { sys: true, code, params: params || {}, ts: Date.now() });
+}
+
+// ------------------------------------------------------------ Bot-Persoenlichkeiten
+const PERSONAS = ["vorsichtig", "draufgaenger", "zaehler", "pokerface"];
+function randomPersona() { return PERSONAS[Math.floor(Math.random() * PERSONAS.length)]; }
+function botTaunt(room, seat, action) {
+  const pool = ({
+    vorsichtig:   ["calm", "doubt"],
+    draufgaenger: ["bold", "bluff"],
+    zaehler:      ["count", "doubt"],
+    pokerface:    ["calm", "bluff"],
+  })[seat.persona || "pokerface"] || ["calm"];
+  const line = (action === "challenge") ? "doubt" : pool[Math.floor(Math.random() * pool.length)];
+  systemChat(room, "bot.taunt", { name: seat.name, line });
 }
 
 // --------------------------------------------------------------- Spielablauf
@@ -213,11 +229,11 @@ function startGame(room) {
   clearTimers(room);
   room.statsRecorded = false;
   room.game = E.newGame({
-    players: room.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
+    players: room.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot, persona: s.persona || null })),
     variant: room.variant,
   });
   room.status = "playing";
-  systemChat(room, "Neue Partie gestartet.");
+  systemChat(room, "game.started");
   if (finishIfOver(room)) return; // sehr selten sofort vorbei (4 Asse beim Austeilen)
   broadcast(room);
   scheduleAuto(room);
@@ -317,6 +333,7 @@ function scheduleAuto(room) {
       const seat = room.seats[gg.turn];
       if (!seat || (!seat.isBot && seat.connected)) return; // Mensch ist zurück
       const dec = E.botDecide(gg, room.botLevel);
+      if (seat.isBot && Math.random() < 0.14) botTaunt(room, seat, dec.action);
       if (dec.action === "challenge") doChallenge(room, gg.turn);
       else doPlay(room, gg.turn, dec.cardIds, dec.rank);
     }, delay);
@@ -360,7 +377,7 @@ function handleMessage(ws, msg) {
       room.hostId = seat.id;
       ws.meta = { code: room.code, seatId: seat.id };
       send(ws, { t: "joined", code: room.code, you: { id: seat.id, token: seat.token, index: 0 } });
-      systemChat(room, seat.name + " hat den Raum erstellt.");
+      systemChat(room, "room.created", { name: seat.name });
       broadcast(room);
       break;
     }
@@ -380,7 +397,7 @@ function handleMessage(ws, msg) {
       ws.meta = { code: room.code, seatId: seat.id };
       const idx = room.seats.length - 1;
       send(ws, { t: "joined", code: room.code, you: { id: seat.id, token: seat.token, index: idx } });
-      systemChat(room, seat.name + " ist beigetreten.");
+      systemChat(room, "player.joined", { name: seat.name });
       broadcast(room);
       break;
     }
@@ -398,7 +415,7 @@ function handleMessage(ws, msg) {
       if (room.timers.cleanup) { clearTimeout(room.timers.cleanup); room.timers.cleanup = null; }
       reassignHostIfNeeded(room);
       send(ws, { t: "joined", code: room.code, you: { id: seat.id, token: seat.token, index: idx } });
-      systemChat(room, seat.name + " ist wieder da.");
+      systemChat(room, "player.back", { name: seat.name });
       broadcast(room);
       break;
     }
@@ -423,9 +440,9 @@ function handleMessage(ws, msg) {
       const room = getRoom(meta); if (!room) return;
       if (!isHost(room, meta) || room.status !== "lobby") return;
       if (room.seats.length >= 6) return send(ws, { t: "error", msg: "Raum ist voll." });
-      const seat = { id: makeId(), token: null, name: botName(room), color: nextColor(room), isBot: true, connected: true, ws: null };
+      const seat = { id: makeId(), token: null, name: botName(room), color: nextColor(room), isBot: true, connected: true, ws: null, persona: randomPersona() };
       room.seats.push(seat);
-      systemChat(room, "Bot " + seat.name + " hinzugefügt.");
+      systemChat(room, "bot.added", { name: seat.name });
       broadcast(room);
       break;
     }
@@ -439,7 +456,7 @@ function handleMessage(ws, msg) {
       if (seat.id === room.hostId) return; // Host bleibt
       if (seat.ws) send(seat.ws, { t: "kicked", msg: "Du wurdest aus dem Raum entfernt." });
       removeSeatAt(room, idx);
-      systemChat(room, seat.name + (seat.isBot ? " (Bot) entfernt." : " entfernt."));
+      systemChat(room, seat.isBot ? "bot.removed" : "player.removed", { name: seat.name });
       broadcast(room);
       break;
     }
@@ -538,10 +555,10 @@ function detach(ws, permanent) {
   if (removeNow) {
     removeSeatAt(room, idx);
     if (seat.id === room.hostId) reassignHostIfNeeded(room);
-    systemChat(room, seat.name + " hat den Raum verlassen.");
+    systemChat(room, "player.left", { name: seat.name });
   } else {
     if (seat.id === room.hostId) reassignHostIfNeeded(room);
-    systemChat(room, seat.name + " ist offline.");
+    systemChat(room, "player.offline", { name: seat.name });
   }
 
   const anyHuman = room.seats.some((s) => s.connected && !s.isBot);
