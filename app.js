@@ -629,8 +629,9 @@
       var p = DAY.sample(DAY.nowT());
       var c = p.sand[p.sand.length - 1];                 // unterste Farbe des Strand-Verlaufs
       c = blendCol(c, "#0a1226", p.dark * 0.7);          // Nacht-Overlay (lg-dark)
-      c = blendCol(c, "#0a1020", 0.40);                  // Vignette am unteren Rand
-      if (document.getElementById("lg-self")) c = blendCol(c, "#000000", 0.30);   // im Spiel liegt unten ein dunkler Verlauf
+      c = blendCol(c, "#0a1020", 0.17);                  // Vignette am unteren Rand (im Browser nachgemessen: Tag 0.19, Nacht 0.15)
+      var b = document.getElementById("lg-bottom");      // im Spiel liegt unten zusaetzlich ein dunkler Verlauf
+      if (b) c = blendCol(c, "#000000", parseFloat(b.getAttribute("data-shade")) || 0.3);
       document.body.style.background = c;
     } catch (err) { /* egal */ }
   }
@@ -1162,9 +1163,10 @@
       var msg = youOut
         ? (L("🏁 Du bist fertig", "🏁 You're done") + (youP.place ? L(", Platz ", ", Place ") + youP.place : "") + L(". Zuschauen bis zum Rundenende…", ". Watch until the round ends…"))
         : "Letzte Karte gelegt, warte auf Bestätigung …";
-      return el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px;text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
+      // id + data-shade: damit syncBodyBg weiss, wie dunkel die Unterkante des Bildschirms hier ist.
+      return el("div", { id: "lg-bottom", "data-shade": "0.35", style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
     }
-    var bottom = el("div", { style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px calc(8px + env(safe-area-inset-bottom,0px))" : "8px 10px calc(14px + env(safe-area-inset-bottom,0px))") + ";" });
+    var bottom = el("div", { id: "lg-bottom", "data-shade": "0.3", style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px calc(8px + env(safe-area-inset-bottom,0px))" : "8px 10px calc(14px + env(safe-area-inset-bottom,0px))") + ";" });
     var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? L("Du", "You") : nameOf(vm, vm.youIndex));
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
     var prompt = "";
