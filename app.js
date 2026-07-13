@@ -624,6 +624,26 @@
     var x = parseCol(a), y = parseCol(b);
     return "rgb(" + Math.round(x[0] + (y[0] - x[0]) * f) + "," + Math.round(x[1] + (y[1] - x[1]) * f) + "," + Math.round(x[2] + (y[2] - x[2]) * f) + ")";
   }
+  // Diagnose-Zeile: zeigt, welche Masse iOS wirklich meldet (nur in den Einstellungen sichtbar).
+  function diagLine() {
+    var probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;"
+      + "padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);";
+    document.body.appendChild(probe);
+    var cs = window.getComputedStyle(probe);
+    var sTop = Math.round(parseFloat(cs.paddingTop) || 0);
+    var sBot = Math.round(parseFloat(cs.paddingBottom) || 0);
+    if (probe.parentNode) probe.parentNode.removeChild(probe);
+    var appEl = document.getElementById("app");
+    var vv = window.visualViewport;
+    return "win " + window.innerWidth + "x" + window.innerHeight
+      + "  screen " + window.screen.width + "x" + window.screen.height
+      + "  safe " + sTop + "/" + sBot + "\n"
+      + "app " + (appEl ? Math.round(appEl.getBoundingClientRect().height) : "-")
+      + "  vv " + (vv ? Math.round(vv.height) + "@" + Math.round(vv.offsetTop) + " z" + vv.scale.toFixed(2) : "-")
+      + "  standalone " + (window.navigator.standalone ? "ja" : "nein");
+  }
+
   function syncBodyBg() {
     try {
       var p = DAY.sample(DAY.nowT());
@@ -828,6 +848,9 @@
       append(card, el("div", { style: "text-align:center;margin-top:8px;" },
         el("button", { onclick: function () { Stats.reset(); render(); }, style: "cursor:pointer;border:none;background:none;color:#9bb0aa;font-weight:700;font-size:12px;text-decoration:underline;" }, L("Statistik zurücksetzen", "Reset stats"))));
     }
+
+    // Diagnose: was meldet iOS im installierten App-Modus wirklich? Klein und unauffaellig.
+    append(card, el("div", { style: "margin-top:18px;text-align:center;font-size:10px;line-height:1.6;color:#b6c8c2;white-space:pre-line;font-family:ui-monospace,Menlo,monospace;", text: diagLine() }));
 
     append(wrap, card);
     return wrap;
