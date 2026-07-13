@@ -624,6 +624,18 @@
     var x = parseCol(a), y = parseCol(b);
     return "rgb(" + Math.round(x[0] + (y[0] - x[0]) * f) + "," + Math.round(x[1] + (y[1] - x[1]) * f) + "," + Math.round(x[2] + (y[2] - x[2]) * f) + ")";
   }
+  // iOS im App-Modus mit "black-translucent": die Webansicht beginnt ganz oben unter der Statusleiste,
+  // ist aber trotzdem nur (Bildschirm minus Statusleiste) hoch. Unten bleibt also ein Streifen uebrig,
+  // der ausserhalb unseres Fensters liegt. Die Home-Leiste sitzt dann in diesem Streifen, NICHT in
+  // unserem Fenster. iOS meldet trotzdem safe-area-inset-bottom = 34px. Wuerden wir den einrechnen,
+  // schoeben wir die Knoepfe unnoetig ein zweites Mal nach oben. Also: in dem Fall auf 0 setzen.
+  function tuneSafeBottom() {
+    var luecke = (window.screen && window.screen.height ? window.screen.height : 0) - window.innerHeight;
+    var abgeschnitten = !!window.navigator.standalone && luecke > 20;
+    document.documentElement.style.setProperty("--lg-safe-bottom",
+      abgeschnitten ? "0px" : "env(safe-area-inset-bottom, 0px)");
+  }
+
   // Diagnose-Zeile: zeigt, welche Masse iOS wirklich meldet (nur in den Einstellungen sichtbar).
   function diagLine() {
     var probe = document.createElement("div");
@@ -641,7 +653,9 @@
       + "  safe " + sTop + "/" + sBot + "\n"
       + "app " + (appEl ? Math.round(appEl.getBoundingClientRect().height) : "-")
       + "  vv " + (vv ? Math.round(vv.height) + "@" + Math.round(vv.offsetTop) + " z" + vv.scale.toFixed(2) : "-")
-      + "  standalone " + (window.navigator.standalone ? "ja" : "nein");
+      + "  standalone " + (window.navigator.standalone ? "ja" : "nein") + "\n"
+      + "streifen " + Math.round((window.screen && window.screen.height ? window.screen.height : 0) - window.innerHeight)
+      + "  padding-unten " + (window.getComputedStyle(document.documentElement).getPropertyValue("--lg-safe-bottom") || "?").trim();
   }
 
   function syncBodyBg() {
@@ -1187,9 +1201,9 @@
         ? (L("🏁 Du bist fertig", "🏁 You're done") + (youP.place ? L(", Platz ", ", Place ") + youP.place : "") + L(". Zuschauen bis zum Rundenende…", ". Watch until the round ends…"))
         : "Letzte Karte gelegt, warte auf Bestätigung …";
       // id + data-shade: damit syncBodyBg weiss, wie dunkel die Unterkante des Bildschirms hier ist.
-      return el("div", { id: "lg-bottom", "data-shade": "0.35", style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
+      return el("div", { id: "lg-bottom", "data-shade": "0.35", style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.35));padding:20px 20px calc(20px + var(--lg-safe-bottom));text-align:center;color:#d9a441;font-weight:800;font-size:16px;" }, msg);
     }
-    var bottom = el("div", { id: "lg-bottom", "data-shade": "0.3", style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px calc(8px + env(safe-area-inset-bottom,0px))" : "8px 10px calc(14px + env(safe-area-inset-bottom,0px))") + ";" });
+    var bottom = el("div", { id: "lg-bottom", "data-shade": "0.3", style: "flex:none;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.3));padding:" + (compact ? "4px 10px calc(8px + var(--lg-safe-bottom))" : "8px 10px calc(14px + var(--lg-safe-bottom))") + ";" });
     var youName = vm.online ? nameOf(vm, vm.youIndex) : (app.mode === "bots" ? L("Du", "You") : nameOf(vm, vm.youIndex));
     var youColor = vm.players[vm.youIndex] ? vm.players[vm.youIndex].color : "#cf7457";
     var prompt = "";
@@ -1714,6 +1728,9 @@
     ["gesturestart", "gesturechange", "gestureend"].forEach(function (ev) {
       document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
     });
+    tuneSafeBottom();
+    window.addEventListener("resize", function () { tuneSafeBottom(); syncBodyBg(); });
+    window.addEventListener("orientationchange", function () { setTimeout(tuneSafeBottom, 250); });
     // ?room=CODE vorbefüllen
     var params = new URLSearchParams(location.search);
     var roomParam = (params.get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

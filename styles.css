@@ -1,5 +1,8 @@
 /* Lügen — globale Stile & Animationen (Design aus dem Original-Entwurf). */
 * { box-sizing: border-box; }
+/* Sicherheitsabstand unten. Wird per JS auf 0 gesetzt, wenn iOS die Webansicht ohnehin
+   schon oberhalb der Home-Leiste enden laesst (siehe tuneSafeBottom in app.js). */
+:root { --lg-safe-bottom: env(safe-area-inset-bottom, 0px); }
 html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
   font-family: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
