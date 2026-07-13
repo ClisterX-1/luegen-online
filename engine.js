@@ -405,12 +405,20 @@
       }
     }
     // Persoenlichkeit faerbt die Kartenzahl ein: vorsichtig legt sparsam, Draufgaenger haut mehr raus.
+    // WICHTIG: der Draufgaenger stockt nur mit ECHTEN Karten der Zahl auf. Ein Bluff mit 3 Karten wird
+    // von allen sofort angezweifelt (die Anzweifel-Wahrscheinlichkeit steigt mit der Kartenzahl),
+    // dadurch sammelte er frueher den ganzen Stapel ein. Bluffs bleiben jetzt bei hoechstens 2 Karten.
     var per2 = state.players[me].persona;
+    var bluffing = honest.length === 0;
     if (per2 === "vorsichtig" && toPlay && toPlay.length > 1) toPlay = toPlay.slice(0, 1);
-    else if (per2 === "draufgaenger" && toPlay && toPlay.length < 3 && hand.length > toPlay.length) {
-      var pool2 = shuffle(hand.filter(function (c){ return toPlay.indexOf(c) < 0 && c.rank !== "A"; }));
+    else if (per2 === "draufgaenger" && toPlay && hand.length > toPlay.length) {
       var room4b = Math.max(1, 4 - (cc[reqIdx] || 0));
-      while (toPlay.length < Math.min(room4b, 3) && pool2.length && Math.random() < 0.6) toPlay.push(pool2.shift());
+      var rest = hand.filter(function (c){ return toPlay.indexOf(c) < 0; });
+      var honestRest = shuffle(rest.filter(function (c){ return c.rank === req; }));
+      while (toPlay.length < Math.min(room4b, 3) && honestRest.length && Math.random() < 0.7) toPlay.push(honestRest.shift());
+      // Hoechstens eine einzige zusaetzliche Bluffkarte obendrauf, und nie ueber das Limit hinaus.
+      var junkRest = shuffle(rest.filter(function (c){ return c.rank !== req && c.rank !== "A" && toPlay.indexOf(c) < 0; }));
+      if (junkRest.length && toPlay.length < Math.min(room4b, bluffing ? 2 : 3) && Math.random() < 0.3) toPlay.push(junkRest[0]);
     }
     if (!toPlay || !toPlay.length) toPlay = hand.slice(0, 1);
     return { action: "play", cardIds: toPlay.map(function (c){ return c.id; }), rank: reqIdx };

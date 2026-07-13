@@ -74,6 +74,7 @@
       if((e=bg.querySelector("#lg-moon"))) e.setAttribute("opacity", Math.max(0,(p.star-0.3)/0.7).toFixed(3));
       if((e=bg.querySelector("#lg-dark"))) e.setAttribute("opacity", (p.dark*0.7).toFixed(3));
       if((e=bg.querySelector("#lg-glints"))) e.setAttribute("opacity", (p.glint*0.6).toFixed(3));
+      syncBodyBg();   // Seitenhintergrund mitfaerben, damit im App-Modus unten kein Streifen auffaellt
     }
     function ensure(){ if(!timer) timer=setInterval(apply, 400); }
     return { stars:stars, apply:apply, ensure:ensure, sample:sample, PERIOD:PERIOD, nowT:nowT };
@@ -609,6 +610,22 @@
   }
 
   // ----------------------------------------------------------- Render-Root
+  // Faerbt <body> in der Farbe, die ganz unten auf dem Bildschirm sichtbar ist.
+  // Falls iOS im installierten App-Modus unten einen Rest freilaesst, faellt er so nicht mehr auf.
+  function syncBodyBg() {
+    try {
+      var h = window.innerHeight || document.documentElement.clientHeight || 0;
+      var w = window.innerWidth || document.documentElement.clientWidth || 320;
+      if (!h) return;
+      var n = document.elementFromPoint(Math.round(w / 2), h - 2);
+      while (n && n !== document.body && n !== document.documentElement) {
+        var c = window.getComputedStyle(n).backgroundColor;
+        if (c && c !== "transparent" && !/,\s*0\s*\)$/.test(c)) { document.body.style.background = c; return; }
+        n = n.parentElement;
+      }
+    } catch (err) { /* egal */ }
+  }
+
   function mount(content, variant) {
     variant = variant || "full";
     var root = $("app");
@@ -632,6 +649,7 @@
     for (var kk in scrollSnap) { var nw = layer.querySelector('[data-keepscroll="' + kk + '"]'); if (nw) nw.scrollLeft = scrollSnap[kk]; }
     Soundboard.ensure();
     Chat.ensure();   // Chat/Sounds-Sichtbarkeit bei jedem Render neu bewerten (auch beim Wechsel auf Endstand)
+    syncBodyBg();
   }
 
   function render() {
@@ -1502,7 +1520,7 @@
         el("span", { style: "width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;background:" + E.PALETTE[i % E.PALETTE.length] + ";", text: ((cfg.names[i] || "").trim()[0] || (i + 1)).toString().toUpperCase() }),
         el("input", { value: cfg.names[i] || "", maxlength: 14, placeholder: isBots ? "Dein Name" : L("Spieler " + (i + 1), "Player " + (i + 1)),
           oninput: function (e) { cfg.names[i] = e.target.value; var dot = e.target.previousSibling; if (dot) dot.textContent = ((e.target.value || "").trim()[0] || (i + 1)).toString().toUpperCase(); },
-          style: "flex:1;border:none;outline:none;background:transparent;font-size:15px;font-weight:600;color:#173f4c;min-width:0;" })));
+          style: "flex:1;border:none;outline:none;background:transparent;font-size:16px;font-weight:600;color:#173f4c;min-width:0;" })));
     })(i);
     append(body, fields);
 
@@ -1658,6 +1676,10 @@
     if (!$("lg-toast")) document.body.appendChild(el("div", { id: "lg-toast" }));
     if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js"); } catch (e) {} }   // macht die App installierbar (PWA)
     document.addEventListener("pointerdown", function () { Sound.unlock(); }, { passive: true });   // iOS: Audio bei jeder Beruehrung aufwecken
+    // Kein Zoom im Spiel: Pinch-Gesten abfangen (iOS ignoriert user-scalable=no).
+    ["gesturestart", "gesturechange", "gestureend"].forEach(function (ev) {
+      document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+    });
     // ?room=CODE vorbefüllen
     var params = new URLSearchParams(location.search);
     var roomParam = (params.get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
