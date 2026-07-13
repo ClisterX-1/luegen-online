@@ -362,13 +362,27 @@
     // --- Legen ---
     var freeChoice = (state.variant !== "asc" && state.roundRank == null);
 
+    // Asse sind Gift: wer alle vier haelt, scheidet sofort aus. Und "Asse" kann man nicht ansagen,
+    // sie lassen sich also NUR verdeckt als Bluffkarte loswerden. Bisher hat der Bot Asse aus jedem
+    // Bluffstapel herausgefiltert: er wurde sie nie los, sammelte sie an, und der Mensch bekam nie
+    // eins untergejubelt. Jetzt mischt er sie bewusst unter, und zwar umso lieber, je mehr er hat.
+    var myAces = countRank(hand, RANKS.length - 1);
+    function withAces(cands) {                  // Reihenfolge der Nicht-Asse bleibt erhalten
+      var asse = shuffle(cands.filter(function (c){ return c.rank === "A"; }));
+      var rest = cands.filter(function (c){ return c.rank !== "A"; });
+      if (!asse.length) return rest;
+      if (!rest.length) return asse;
+      var p = myAces >= 3 ? 0.9 : myAces === 2 ? 0.5 : 0.2;
+      return (Math.random() < p) ? asse.concat(rest) : rest.concat(asse);
+    }
+
     // Setup-Bluff (schwer): Rundenzahl = eine Zahl, die ich mehrfach halte; jetzt mit Müll
     // bluffen und die echten Karten später ehrlich nachlegen (die genannte Taktik).
     if (freeChoice && level === "schwer" && Math.random() < 0.3) {
       var multi = -1, bestN = 1;
       for (var ri = 0; ri < 12; ri++) { if (dead[RANKS[ri]]) continue; var cnt = countRank(hand, ri); if (cnt >= 2 && cnt > bestN) { bestN = cnt; multi = ri; } }
       if (multi >= 0) {
-        var junk = shuffle(hand.filter(function (c){ return c.rank !== RANKS[multi] && c.rank !== "A"; }));
+        var junk = withAces(shuffle(hand.filter(function (c){ return c.rank !== RANKS[multi]; })));
         if (junk.length) {
           var nn = Math.min(junk.length, 1 + (Math.random() < 0.4 ? 1 : 0));
           return { action: "play", cardIds: junk.slice(0, nn).map(function (c){ return c.id; }), rank: multi };
@@ -393,15 +407,15 @@
     } else {
       var sorted = hand.slice().sort(function (a, b){ return rankIdx(a.rank) - rankIdx(b.rank); });
       if (level === "leicht") {
-        toPlay = sorted.slice(0, 1);                    // niedrigste -> Tell
+        toPlay = withAces(sorted).slice(0, 1);          // sonst niedrigste -> Tell
       } else if (level === "schwer") {
         var room4 = Math.max(1, 4 - (cc[reqIdx] || 0)); // nicht offensichtlich unmöglich bluffen
         var n = Math.min(room4, hand.length, 1 + (Math.random() < 0.35 ? 1 : 0));
-        var pool = shuffle(hand.filter(function (c){ return c.rank !== "A"; }));
+        var pool = withAces(shuffle(hand.slice()));
         if (!pool.length) pool = hand.slice();
         toPlay = pool.slice(0, n);                      // variierte Bluffkarten (kein „immer niedrigste"-Tell)
       } else { // mittel
-        toPlay = sorted.slice(0, Math.min(Math.random() < 0.6 ? 1 : 2, hand.length));
+        toPlay = withAces(sorted).slice(0, Math.min(Math.random() < 0.6 ? 1 : 2, hand.length));
       }
     }
     // Persoenlichkeit faerbt die Kartenzahl ein: vorsichtig legt sparsam, Draufgaenger haut mehr raus.
@@ -417,7 +431,7 @@
       var honestRest = shuffle(rest.filter(function (c){ return c.rank === req; }));
       while (toPlay.length < Math.min(room4b, 3) && honestRest.length && Math.random() < 0.7) toPlay.push(honestRest.shift());
       // Hoechstens eine einzige zusaetzliche Bluffkarte obendrauf, und nie ueber das Limit hinaus.
-      var junkRest = shuffle(rest.filter(function (c){ return c.rank !== req && c.rank !== "A" && toPlay.indexOf(c) < 0; }));
+      var junkRest = withAces(shuffle(rest.filter(function (c){ return c.rank !== req && toPlay.indexOf(c) < 0; })));
       if (junkRest.length && toPlay.length < Math.min(room4b, bluffing ? 2 : 3) && Math.random() < 0.3) toPlay.push(junkRest[0]);
     }
     if (!toPlay || !toPlay.length) toPlay = hand.slice(0, 1);

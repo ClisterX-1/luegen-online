@@ -337,7 +337,8 @@
       if (!dr[r] || app.fx.deadSeen[r]) continue;
       app.fx.deadSeen[r] = true;
       var nm = app.settings.lang === "en" ? RANK_EN_MANY[r] : E.RANKLONG[r];
-      toast(L("Alle vier " + nm + " sind aus dem Spiel (Vierersatz).", "All four " + nm + " are out of the game (four of a kind)."));
+      // Erscheint an derselben Stelle wie "Die Wahrheit! ...", aber immer nacheinander, nie ueberlappend.
+      queueBanner(L("Vierersatz: alle vier " + nm + " sind raus.", "Four of a kind: all four " + nm + " are out."));
     }
   }
   var Stats = {
@@ -357,12 +358,32 @@
     setTimeout(function () { t.style.transition = "opacity .3s"; t.style.opacity = "0"; setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 300); }, 2800);
   }
 
-  // ----------------------------------------------------------- Banner
-  function setBanner(text) {
+  // ----------------------------------------------------------- Banner (mit Warteschlange)
+  // Ereignis-Banner ("X zweifelt an!", "Die Wahrheit! ...") erscheinen sofort.
+  // Info-Banner (Vierersatz) stellen sich hinten an, damit sich nie zwei ueberlappen.
+  var bannerQ = [];
+  var bannerInfo = false;                       // laeuft gerade ein Info-Banner?
+
+  function setBanner(text) {                    // Ereignis: sofort
+    if (bannerInfo && app.banner.on) bannerQ.unshift({ text: app.banner.text, ms: 3000 });  // Info nicht verschlucken
+    showBanner(text, 4000, false);
+  }
+  function queueBanner(text) {                  // Info: erst wenn nichts anderes laeuft
+    if (app.banner.on) bannerQ.push({ text: text, ms: 3000 });
+    else showBanner(text, 3000, true);
+  }
+  function showBanner(text, ms, info) {
+    bannerInfo = !!info;
     app.banner.text = text; app.banner.on = true;
     if (app.banner.timer) clearTimeout(app.banner.timer);
     render();
-    app.banner.timer = setTimeout(function () { app.banner.on = false; render(); }, 4000);
+    app.banner.timer = setTimeout(bannerNext, ms);
+  }
+  function bannerNext() {
+    app.banner.timer = null;
+    var n = bannerQ.shift();
+    if (n) return showBanner(n.text, n.ms, true);
+    bannerInfo = false; app.banner.on = false; render();
   }
 
   // ----------------------------------------------------------- Netzwerk
