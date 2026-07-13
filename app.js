@@ -610,19 +610,28 @@
   }
 
   // ----------------------------------------------------------- Render-Root
-  // Faerbt <body> in der Farbe, die ganz unten auf dem Bildschirm sichtbar ist.
-  // Falls iOS im installierten App-Modus unten einen Rest freilaesst, faellt er so nicht mehr auf.
+  // iOS laesst im installierten App-Modus unten einen Streifen frei, den KEIN Element abdecken kann:
+  // dort malt das System nur die Hintergrundfarbe von <body> (die Canvas-Farbe). Also faerben wir
+  // <body> exakt in die Farbe, die die Szene an ihrer Unterkante hat. Damit ist der Streifen unsichtbar.
+  function parseCol(c) {
+    var m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(c || "");
+    if (m) return [+m[1], +m[2], +m[3]];
+    m = /^#?([0-9a-fA-F]{6})$/.exec((c || "").trim());
+    if (m) { var v = parseInt(m[1], 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+    return [31, 107, 120];
+  }
+  function blendCol(a, b, f) {
+    var x = parseCol(a), y = parseCol(b);
+    return "rgb(" + Math.round(x[0] + (y[0] - x[0]) * f) + "," + Math.round(x[1] + (y[1] - x[1]) * f) + "," + Math.round(x[2] + (y[2] - x[2]) * f) + ")";
+  }
   function syncBodyBg() {
     try {
-      var h = window.innerHeight || document.documentElement.clientHeight || 0;
-      var w = window.innerWidth || document.documentElement.clientWidth || 320;
-      if (!h) return;
-      var n = document.elementFromPoint(Math.round(w / 2), h - 2);
-      while (n && n !== document.body && n !== document.documentElement) {
-        var c = window.getComputedStyle(n).backgroundColor;
-        if (c && c !== "transparent" && !/,\s*0\s*\)$/.test(c)) { document.body.style.background = c; return; }
-        n = n.parentElement;
-      }
+      var p = DAY.sample(DAY.nowT());
+      var c = p.sand[p.sand.length - 1];                 // unterste Farbe des Strand-Verlaufs
+      c = blendCol(c, "#0a1226", p.dark * 0.7);          // Nacht-Overlay (lg-dark)
+      c = blendCol(c, "#0a1020", 0.40);                  // Vignette am unteren Rand
+      if (document.getElementById("lg-self")) c = blendCol(c, "#000000", 0.30);   // im Spiel liegt unten ein dunkler Verlauf
+      document.body.style.background = c;
     } catch (err) { /* egal */ }
   }
 
