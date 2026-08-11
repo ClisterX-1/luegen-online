@@ -540,7 +540,9 @@ function getRoom(meta) { return meta && meta.code ? rooms.get(meta.code) : null;
 function seatIndex(room, meta) { return room.seats.findIndex((s) => s.id === (meta && meta.seatId)); }
 function isHost(room, meta) { return room.hostId === (meta && meta.seatId); }
 
-// Verbindung trennen. permanent=true -> Sitz wird (in der Lobby) entfernt.
+// Verbindung trennen. permanent=true (bewusstes "leave") -> Sitz wird sofort entfernt.
+// permanent=false (Netzwerkabbruch, z.B. WS-Verbindung weg) -> Sitz bleibt reserviert,
+// nur als offline markiert, siehe removeNow weiter unten.
 function detach(ws, permanent) {
   const meta = ws.meta;
   if (!meta || !meta.code) return;
@@ -551,7 +553,13 @@ function detach(ws, permanent) {
   const seat = room.seats[idx];
   seat.connected = false; seat.ws = null;
 
-  const removeNow = permanent || room.status === "lobby";
+  // Handys trennen die WebSocket-Verbindung oft schon Sekunden nachdem man die App in den
+  // Hintergrund schickt (Bildschirm aus, App-Wechsel). Bisher flog man dadurch in der Lobby
+  // SOFORT aus dem Raum. Jetzt gilt fuer Lobby und laufendes Spiel dieselbe Regel wie schon
+  // beim laufenden Spiel: der Platz bleibt reserviert (als "offline" markiert), man kann per
+  // Rejoin-Token jederzeit zurueckkommen. Nur ein bewusstes Kicken durch den Host (removeSeat)
+  // oder ein Raum ganz ohne verbundene Menschen (EMPTY_ROOM_TTL, 3 Min.) entfernt den Platz noch.
+  const removeNow = permanent;
   if (removeNow) {
     removeSeatAt(room, idx);
     if (seat.id === room.hostId) reassignHostIfNeeded(room);

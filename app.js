@@ -48,9 +48,12 @@
       };
     }
     // Sterne einmalig erzeugen (deterministisch, damit sie beim Bildwechsel nicht springen).
+    // Weniger Sterne als frueher (22 statt 48): jeder Stern ist eine eigene SVG-SMIL-Animation,
+    // die WebKit dauerhaft auf der Haupt-CPU rechnet. Weniger Sterne = spuerbar kuehler bei
+    // langem Spielen, ohne dass man den Unterschied im Sternenfeld optisch bemerkt.
     var seed=20260624, stars="";
     function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
-    for (var n=0; n<48; n++){
+    for (var n=0; n<22; n++){
       var sx=(8+rnd()*784).toFixed(0), sy=(16+rnd()*284).toFixed(0), sr=(0.7+rnd()*1.5).toFixed(2);
       var du=(2.6+rnd()*3.4).toFixed(1), bgn=(-rnd()*5).toFixed(1), o=(0.5+rnd()*0.5).toFixed(2);
       stars += '<circle cx="'+sx+'" cy="'+sy+'" r="'+sr+'" fill="#FBFBFF" opacity="'+o+'"><animate attributeName="opacity" values="'+(o*0.3).toFixed(2)+';'+o+';'+(o*0.3).toFixed(2)+'" dur="'+du+'s" begin="'+bgn+'s" repeatCount="indefinite"/></circle>';
@@ -76,8 +79,11 @@
       if((e=bg.querySelector("#lg-glints"))) e.setAttribute("opacity", (p.glint*0.6).toFixed(3));
       syncBodyBg();   // Seitenhintergrund mitfaerben, damit im App-Modus unten kein Streifen auffaellt
     }
-    function ensure(){ if(!timer) timer=setInterval(apply, 400); }
-    return { stars:stars, apply:apply, ensure:ensure, sample:sample, PERIOD:PERIOD, nowT:nowT };
+    // 1000ms statt vorher 400ms: bei einem 18-Minuten-Zyklus faellt das nicht auf, spart aber
+    // gut 60% der staendigen DOM-Schreibvorgaenge (Gradient-Stops, Sonne, Sterne, Vignette) ein.
+    function ensure(){ if(!timer){ timer=setInterval(apply, 1000); apply(); } }
+    function pause(){ if(timer){ clearInterval(timer); timer=null; } }
+    return { stars:stars, apply:apply, ensure:ensure, pause:pause, sample:sample, PERIOD:PERIOD, nowT:nowT };
   })();
 
   // ----------------------------------------------------------- DOM-Helfer
@@ -408,6 +414,9 @@
     if (app.reconnecting) return;
     app.reconnecting = true;
     toast("Verbindung verloren – neu verbinden…");
+    reconnectLoop();
+  }
+  function reconnectLoop() {
     var attempt = 0;
     (function retry() {
       attempt++;
@@ -419,6 +428,21 @@
         else { app.reconnecting = false; toast("Verbindung fehlgeschlagen."); }
       });
     })();
+  }
+  // Handys frieren die WebSocket-Verbindung beim Zurueckkehren aus dem Hintergrund oft leise
+  // ein, ohne dass "onclose" zeitnah feuert. Deshalb hier zusaetzlich AKTIV pruefen, sobald die
+  // App wieder sichtbar wird, statt nur passiv auf das (moeglicherweise verspaetete) close-
+  // Ereignis der alten Verbindung zu warten. Der Server erlaubt das Reservieren des Sitzplatzes
+  // jetzt laenger (siehe server.js/detach), das hier sorgt dafuer, dass wir sie auch schnell
+  // wieder einnehmen.
+  function checkConnectionOnResume() {
+    if (app.leaving || app.mode !== "online") return;
+    if (!app.code || !app.token || app.reconnecting) return;
+    // Absichtlich IMMER neu verbinden statt readyState zu vertrauen: nach laengerer Pause
+    // meldet der Browser die alte Verbindung oft faelschlich noch als "offen" (Zombie-Socket).
+    // Ein zusaetzlicher Rejoin ist fuer den Server harmlos (siehe rejoin-Handler in server.js).
+    app.reconnecting = true;
+    reconnectLoop();
   }
 
   function persistSession() {
@@ -1196,7 +1220,7 @@
 
     var lugeSlot = el("div", { style: "flex:none;height:" + (compact ? "50px" : "60px") + ";margin-top:" + (compact ? "16px" : "10px") + ";display:flex;align-items:center;justify-content:center;" });
     if (vm.canChallenge) {
-      append(lugeSlot, el("button", { onclick: onChallenge.bind(null, vm), style: "border:none;cursor:pointer;background:linear-gradient(180deg,#cf6a5c,#a84436);color:#fff;font-weight:800;font-size:17px;letter-spacing:.04em;padding:12px 28px;border-radius:30px;box-shadow:0 10px 24px rgba(168,68,54,.5),inset 0 0 0 1px rgba(255,255,255,.2);animation:lg-glow 1.8s ease-in-out infinite;" }, "„Lüge!“"));
+      append(lugeSlot, el("button", { class: "lg-glow-btn", onclick: onChallenge.bind(null, vm), style: "border:none;cursor:pointer;background:linear-gradient(180deg,#cf6a5c,#a84436);color:#fff;font-weight:800;font-size:17px;letter-spacing:.04em;padding:12px 28px;border-radius:30px;box-shadow:0 10px 24px rgba(168,68,54,.5),inset 0 0 0 1px rgba(255,255,255,.2);" }, "„Lüge!“"));
     }
     append(center, lugeSlot);
     append(root, center);
@@ -1281,7 +1305,7 @@
       append(actions, el("button", { style: pb, onclick: selCount > 0 ? function () { playSelected(vm); } : null }, selCount > 0 ? (word + " · " + selCount) : "Karten wählen"));
     } else if (vm.status === "playing" && vm.phase === "play" && !vm.passHidden) {
       append(actions, el("div", { style: "color:rgba(251,243,226,.7);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;" },
-        el("span", { style: "width:8px;height:8px;border-radius:50%;background:#d9a441;animation:lg-glow 1s infinite;" }),
+        el("span", { class: "lg-glow-dot", style: "width:8px;height:8px;border-radius:50%;background:#d9a441;" }),
         (nameOf(vm, turnOf(vm)) + L(" ist am Zug…", " is playing…"))));
     }
     append(bottom, actions);
@@ -1752,6 +1776,22 @@
     tuneSafeBottom();
     window.addEventListener("resize", function () { tuneSafeBottom(); syncBodyBg(); });
     window.addEventListener("orientationchange", function () { setTimeout(tuneSafeBottom, 250); });
+
+    // Handy wird heiss: Animationen laufen sonst *immer* weiter, auch wenn das Spiel im
+    // Hintergrund liegt (Bildschirm aus, andere App aktiv). Bei "hidden" alles einfrieren:
+    // den Tag-Nacht-Timer stoppen und die SVG-Animationen (Sterne, Wolken, Boot, Glitzern)
+    // per pauseAnimations() anhalten, statt sie unsichtbar weiterrechnen zu lassen.
+    document.addEventListener("visibilitychange", function () {
+      var svg = document.querySelector("#lg-bg svg");
+      if (document.hidden) {
+        DAY.pause();
+        if (svg && svg.pauseAnimations) try { svg.pauseAnimations(); } catch (e) {}
+      } else {
+        DAY.ensure();
+        if (svg && svg.unpauseAnimations) try { svg.unpauseAnimations(); } catch (e) {}
+        checkConnectionOnResume();
+      }
+    });
     // ?room=CODE vorbefüllen
     var params = new URLSearchParams(location.search);
     var roomParam = (params.get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

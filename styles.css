@@ -30,7 +30,23 @@ input { font-family: inherit; }
 
 @keyframes lg-pop  { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes lg-rise { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-@keyframes lg-glow { 0%,100% { box-shadow: 0 0 0 3px rgba(217,164,65,.85), 0 0 22px rgba(217,164,65,.45); } 50% { box-shadow: 0 0 0 3px rgba(217,164,65,1), 0 0 34px rgba(217,164,65,.8); } }
+/* Direktes Animieren von box-shadow zwingt den Browser, die unscharfe Kontur JEDEN Frame neu
+   zu zeichnen (kein Compositor-Trick moeglich) -> auf dem Handy spuerbar warm bei langem Spielen.
+   Deshalb pulsiert hier stattdessen eine separate, unveraenderte ::after-Ebene nur in Opacity/
+   Skalierung: das kann der Browser als vorgerechnetes Bild einfach ein- und ausblenden. */
+@keyframes lg-glow2 { 0%, 100% { opacity: .5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+.lg-glow-btn { position: relative; }
+.lg-glow-btn::after {
+  content: ""; position: absolute; inset: -6px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(217,164,65,.9), 0 0 26px rgba(217,164,65,.8);
+  animation: lg-glow2 1.8s ease-in-out infinite;
+}
+.lg-glow-dot { position: relative; }
+.lg-glow-dot::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 10px 3px rgba(217,164,65,.9);
+  animation: lg-glow2 1.3s ease-in-out infinite;
+}
 @keyframes lg-spin { to { transform: rotate(360deg); } }
 @keyframes lg-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lg-dealin { from { transform: translateY(-18px) scale(.9); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
