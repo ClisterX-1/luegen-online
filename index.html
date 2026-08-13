@@ -9,7 +9,13 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- WICHTIG: "black-translucent" hat auf manchen iPhones einen bekannten WebKit-Bug: die
+       Web-Ansicht ist dann kuerzer als der Bildschirm (genau um die Hoehe der Statusleiste),
+       und der fehlende Streifen unten laesst sich mit keiner CSS-Hoehe erreichen, egal was man
+       versucht (siehe tuneSafeBottom/syncBodyBg in app.js, waren nur Kaschierungsversuche).
+       "black" beseitigt den Bug an der Wurzel: die Statusleiste wird ein blickdichter Balken,
+       dafuer stimmt die Fensterhoehe dann exakt mit dem Bildschirm ueberein, kein Rest bleibt. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Lügen">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
