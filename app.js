@@ -1750,7 +1750,9 @@
     if (!$("lg-extra-css")) {
       var st = document.createElement("style"); st.id = "lg-extra-css";
       st.textContent =
-        "#lg-soundboard{position:fixed;left:0;bottom:0;z-index:60;display:flex;flex-direction:column;align-items:flex-start;}" +
+        // bottom: env(...) statt bottom:0, sonst sitzt der Knopf direkt auf/unter der Home-Leiste
+        // (frueher durch den Statusleisten-Bug zufaellig kaschiert, seit dessen Behebung sichtbar).
+        "#lg-soundboard{position:fixed;left:0;bottom:env(safe-area-inset-bottom, 0px);z-index:60;display:flex;flex-direction:column;align-items:flex-start;}" +
         "#lg-soundboard .sb-panel{width:min(300px,90vw);background:rgba(16,54,64,.97);border:1px solid rgba(217,164,65,.4);border-left:none;border-radius:0 14px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.5);padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:48vh;overflow-y:auto;}" +
         "#lg-soundboard .sb-btn{cursor:pointer;border:1px solid rgba(217,164,65,.4);background:rgba(255,255,255,.06);color:#fbf3e2;font-weight:700;font-size:13px;border-radius:10px;padding:11px 8px;text-align:center;}" +
         "#lg-soundboard .sb-btn:active{transform:scale(.95);background:rgba(217,164,65,.25);}" +
