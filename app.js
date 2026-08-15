@@ -669,17 +669,15 @@
     var x = parseCol(a), y = parseCol(b);
     return "rgb(" + Math.round(x[0] + (y[0] - x[0]) * f) + "," + Math.round(x[1] + (y[1] - x[1]) * f) + "," + Math.round(x[2] + (y[2] - x[2]) * f) + ")";
   }
-  // iOS im App-Modus mit "black-translucent": die Webansicht beginnt ganz oben unter der Statusleiste,
-  // ist aber trotzdem nur (Bildschirm minus Statusleiste) hoch. Unten bleibt also ein Streifen uebrig,
-  // der ausserhalb unseres Fensters liegt. Die Home-Leiste sitzt dann in diesem Streifen, NICHT in
-  // unserem Fenster. iOS meldet trotzdem safe-area-inset-bottom = 34px. Wuerden wir den einrechnen,
-  // schoeben wir die Knoepfe unnoetig ein zweites Mal nach oben. Also: in dem Fall auf 0 setzen.
-  function tuneSafeBottom() {
-    var luecke = (window.screen && window.screen.height ? window.screen.height : 0) - window.innerHeight;
-    var abgeschnitten = !!window.navigator.standalone && luecke > 20;
-    document.documentElement.style.setProperty("--lg-safe-bottom",
-      abgeschnitten ? "0px" : "env(safe-area-inset-bottom, 0px)");
-  }
+  // FRUEHER (bei "black-translucent"): die Webansicht war kuerzer als der Bildschirm, und dieser
+  // Trick hat den doppelt gezaehlten Sicherheitsabstand unten wieder rausgerechnet. Seit die
+  // Statusleiste auf "black" umgestellt ist (siehe index.html), gibt es diesen Fehler nicht mehr:
+  // die Webansicht endet dort, wo sie soll, und env(safe-area-inset-bottom) ist wieder ein normaler,
+  // korrekter Wert fuer die Home-Leiste. Der Bildschirm-minus-Fenster-Vergleich war NUR ein Symptom
+  // von "black-translucent" und hat mit "black" nichts mehr zu tun (die Statuszeile oben nimmt jetzt
+  // ganz regulaer Platz vom Fenster weg) -> der alte Trick wuerde die Knoepfe unten jetzt faelschlich
+  // zu dicht an die Home-Leiste ruecken. Deshalb entfernt: --lg-safe-bottom bleibt der CSS-Standard-
+  // wert env(safe-area-inset-bottom, 0px) aus styles.css, unangetastet.
 
   // Diagnose-Zeile: zeigt, welche Masse iOS wirklich meldet (nur in den Einstellungen sichtbar).
   function diagLine() {
@@ -1773,9 +1771,7 @@
     ["gesturestart", "gesturechange", "gestureend"].forEach(function (ev) {
       document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
     });
-    tuneSafeBottom();
-    window.addEventListener("resize", function () { tuneSafeBottom(); syncBodyBg(); });
-    window.addEventListener("orientationchange", function () { setTimeout(tuneSafeBottom, 250); });
+    window.addEventListener("resize", function () { syncBodyBg(); });
 
     // Handy wird heiss: Animationen laufen sonst *immer* weiter, auch wenn das Spiel im
     // Hintergrund liegt (Bildschirm aus, andere App aktiv). Bei "hidden" alles einfrieren:
